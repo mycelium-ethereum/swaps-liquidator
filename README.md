@@ -1,0 +1,34 @@
+# Metavault.Trade Liquidator Serverless function
+
+---
+
+## NOTES
+
+-   Deployed with GAE
+
+### ENV VARS
+
+> Create a .env file
+
+-   RPC_URL
+-   TESTABLE_VM_ADDRESS
+-   LIQUIDATOR_ADDRESS
+-   INTERVAL_PERIOD
+-   PORT=3002
+-   LIQUIDATOR_PRIVATE_KEY
+-   FROM_BLOCK
+-   VAULT_ADDRESS
+-   READER_ADDRESS
+
+---
+
+TOKEN ENV VARS
+
+-   BTC_ADDRESS
+-   WETH_ADDRESS
+-   USDC_ADDRESS
+-   LINK_ADDRESS
+-   UNI_ADDRESS
+-   USDT_ADDRESS
+-   MIM_ADDRESS
+-   FRAX_ADDRESS
