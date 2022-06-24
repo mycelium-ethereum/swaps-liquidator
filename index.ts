@@ -28,7 +28,7 @@ const main = async () => {
 };
 
 app.get("/", function (_req, res) {
-    res.send("Metavault.Trade Liquidator");
+    res.send("Tracer Swaps Liquidator");
 });
 
 app.listen(process.env.PORT, async () => {

@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  app:
+    container_name: tracer-swaps-liquidator
+    build: .
+    ports:
+      - "8080:3000"
+    environment:
+      DB_ENDPOINT: "mongodb://${DB_USER}:${DB_PASSWORD}@mongo:27017"
+      RPC_URL: "${RPC_URL}"
+      LIQUIDATOR_ADDRESS: "${LIQUIDATOR_ADDRESS}"
+      LIQUIDATOR_PRIVATE_KEY: "${LIQUIDATOR_PRIVATE_KEY}"
+      PORT: "3000"
+      FROM_BLOCK: "${FROM_BLOCK}"
+      MAX_PROCESS_BLOCK: "${MAX_PROCESS_BLOCK}"
+      VAULT_ADDRESS: "${VAULT_ADDRESS}"
+      START_CRON: "${START_CRON}"
+      SHADOW_MODE: "${SHADOW_MODE}"
+    links:
+      - mongo
+
+  mongo:
+    container_name: mongo
+    image: "mongo"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${DB_USER}"
+      MONGO_INITDB_ROOT_PASSWORD: "${DB_PASSWORD}"
+    volumes:
+      - db-data:/db
+    ports:
+      - "27017:27017"
+
+
+volumes:
+  db-data:
