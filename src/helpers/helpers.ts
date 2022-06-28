@@ -16,7 +16,13 @@ const TX_ERROR_PATTERNS = {
 
 type TxOpts = ethers.Overrides & { from?: string | Promise<string> };
 
-export const sendTxn = async (txnContract: Contract, txnMethod: string, txnParams: any[], txOptions: TxOpts, label: string) => {
+export const sendTxn = async (
+    txnContract: Contract,
+    txnMethod: string,
+    txnParams: any[],
+    txOptions: TxOpts,
+    label: string
+) => {
     let retry = 3;
     while (retry > 0) {
         try {
@@ -92,4 +98,60 @@ function extractError(ex) {
 
 export const sleep = async (seconds: number) => {
     return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+};
+
+export const exponentialBackoff = async <T>({
+    fn,
+    maxRetries = 10,
+    shouldRetry,
+}: {
+    fn: () => Promise<T>;
+    shouldRetry: (error: any) => boolean;
+    maxRetries: number;
+}): Promise<T> => {
+    let retries = 0;
+    while (true) {
+        try {
+            return await fn();
+        } catch (e) {
+            if (!shouldRetry(e)) {
+                throw e;
+            } else if (retries >= maxRetries) {
+                throw e;
+            } else {
+                console.log(`Retrying after error: ${e.message}`);
+                retries++;
+                await sleep(Math.pow(2, retries));
+            }
+        }
+    }
+};
+
+export const retry = async <T>({
+    fn,
+    maxRetries = 10,
+    shouldRetry,
+    timeoutSeconds = 10,
+}: {
+    fn: () => Promise<T>;
+    shouldRetry: (error: any) => boolean;
+    maxRetries: number;
+    timeoutSeconds: number;
+}) => {
+    let retries = 0;
+    while (true) {
+        try {
+            return await fn();
+        } catch (e) {
+            if (!shouldRetry(e)) {
+                throw e;
+            } else if (retries >= maxRetries) {
+                throw e;
+            } else {
+                console.log(`Retrying after error: ${e.message}`);
+                retries++;
+                await sleep(timeoutSeconds);
+            }
+        }
+    }
 };

@@ -2,48 +2,78 @@ import { IPositionSchema } from "src/models/position";
 import { Vault } from "src/typechain";
 
 import PositionService, { IPositionService } from "./../services/position.service";
-
-const MAX_BATCH_SIZE = 100;
-
+import { retry } from "./helpers";
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
     const positionService: IPositionService = new PositionService();
 
-    let positionsToLiquidate: IPositionSchema[] = [];
-    let pointer = 0;
-    while (pointer < openPositions.length) {
-        const batch = openPositions.slice(pointer, pointer + MAX_BATCH_SIZE);
+    const promises = openPositions.map(async (position) => {
+        const positionExists = await getPositionExists(position, vault);
+        if (!positionExists) {
+            await positionService.deletePosition(position.key, position.blockNumber).catch((err) => console.log(err));
+            return;
+        }
+        const liquidationState = await getLiquidationState(position, vault);
+        if (liquidationState > 0) {
+            console.log("ToLiquidatePosition******************************");
+            console.log(`LiquidationState: ${liquidationState}`);
+            console.log(position);
+            return position;
+        }
+    });
+    const positionsToLiquidate = await Promise.all(promises);
+    return positionsToLiquidate.filter(Boolean);
+};
 
-        const promises = batch.map(async (dbPosition) => {
-            try {
-                const liquidationState = await getLiquidationState(dbPosition, vault);
-
-                if (liquidationState === undefined) {
-                    await positionService.deletePosition(dbPosition.key, dbPosition.blockNumber).catch((err) => console.log(err));
-                    return;
-                } else if (liquidationState > 0) {
-                    console.log("ToLiquidatePosition******************************");
-                    console.log(`LiquidationState: ${liquidationState}`);
-                    console.log(dbPosition);
-                    return dbPosition;
-                }
-            } catch (err) {
-                console.log(err);
-            }
+const getPositionExists = async (dbPosition: IPositionSchema, vault: Vault) => {
+    try {
+        const positionSize = await retry({
+            fn: async () => {
+                const [size] = await vault.getPosition(
+                    dbPosition.account,
+                    dbPosition.collateralToken,
+                    dbPosition.indexToken,
+                    dbPosition.isLong
+                );
+                return size;
+            },
+            shouldRetry: (err) => {
+                return err.code === 429;
+            },
+            maxRetries: 10,
+            timeoutSeconds: 5,
         });
-
-        let batchLiquidationPositions = await Promise.all(promises);
-        batchLiquidationPositions = batchLiquidationPositions.flat().filter(Boolean);
-
-        positionsToLiquidate = [...positionsToLiquidate, ...batchLiquidationPositions];
-        pointer += MAX_BATCH_SIZE;
+        return positionSize.gt(0);
+    } catch (err) {
+        console.log("getPositionExists: catch");
+        console.error(err);
     }
-
-    return positionsToLiquidate;
 };
 
 const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) => {
-    const [liquidationState] = await vault.validateLiquidation(dbPosition.account, dbPosition.collateralToken, dbPosition.indexToken, dbPosition.isLong, false);
-    return liquidationState.toNumber();
+    try {
+        const liquidationState = await retry({
+            fn: async () => {
+                const [state] = await vault.validateLiquidation(
+                    dbPosition.account,
+                    dbPosition.collateralToken,
+                    dbPosition.indexToken,
+                    dbPosition.isLong,
+                    false
+                );
+                return state;
+            },
+            shouldRetry: (err) => {
+                return err.code === 429;
+            },
+            maxRetries: 10,
+            timeoutSeconds: 5,
+        });
+
+        return liquidationState.toNumber();
+    } catch (err) {
+        console.log("getLiquidationState: catch");
+        console.error(err);
+    }
 };
 
 export default getPositionsToLiquidate;

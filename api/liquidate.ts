@@ -9,7 +9,7 @@ const SHADOW_MODE = process.env.SHADOW_MODE === "true";
 
 const liquidationHandler = async function () {
     try {
-        const provider = new ethers.providers.JsonRpcBatchProvider(process.env.RPC_URL);
+        const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
         const signer = new ethers.Wallet(`0x${process.env.LIQUIDATOR_PRIVATE_KEY}`, provider);
         const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, signer);
 
@@ -74,4 +74,13 @@ const liquidationHandler = async function () {
     }
 };
 
-export default liquidationHandler;
+let isProcessing = false;
+export default async () => {
+    if (isProcessing) {
+        console.info("Liquidation is already processing.");
+        return;
+    }
+    isProcessing = true;
+    await liquidationHandler();
+    isProcessing = false;
+};
