@@ -1,7 +1,7 @@
 import { Provider } from "@ethersproject/providers";
 import PositionService, { IPositionService } from "./../services/position.service";
 import ParameterService, { IParameterService } from "./../services/parameter.service";
-import { Vault } from "../typechain";
+import { Vault } from "../../typechain";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
     const ipEventFilterIncrease = vault.filters.IncreasePosition();
@@ -44,18 +44,29 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
         await Promise.all(
             eventsIncrease.map(async (event) => {
                 await positionService
-                    .createNewPosition(event.args.key, event.args.account, event.blockNumber, event.args.collateralToken, event.args.indexToken, event.args.isLong)
+                    .createNewPosition(
+                        event.args.key,
+                        event.args.account,
+                        event.blockNumber,
+                        event.args.collateralToken,
+                        event.args.indexToken,
+                        event.args.isLong
+                    )
                     .catch((err) => console.log(err));
             })
         );
         await Promise.all(
             eventsClose.map(async (event) => {
-                await positionService.deletePosition(event.args.key, event.blockNumber).catch((err) => console.log(err));
+                await positionService
+                    .deletePosition(event.args.key, event.blockNumber)
+                    .catch((err) => console.log(err));
             })
         );
         await Promise.all(
             eventsLiquidate.map(async (event) => {
-                await positionService.deletePosition(event.args.key, event.blockNumber).catch((err) => console.log(err));
+                await positionService
+                    .deletePosition(event.args.key, event.blockNumber)
+                    .catch((err) => console.log(err));
             })
         );
 

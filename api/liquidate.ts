@@ -1,9 +1,8 @@
 import { ethers } from "ethers";
 import colors from "colors";
-import { Vault__factory } from "../src/typechain";
+import { Vault__factory } from "../typechain";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
-
 
 const liquidationHandler = async function () {
     try {
@@ -38,7 +37,7 @@ const liquidationHandler = async function () {
             console.info(
                 colors.yellow(`Liquidating ${position.isLong ? "long" : "short"} position ${position.key}...`)
             );
- 
+
             const tx = await vault.liquidatePosition(
                 position.account,
                 position.collateralToken,
@@ -47,11 +46,8 @@ const liquidationHandler = async function () {
                 process.env.LIQUIDATOR_ADDRESS
             );
             const receipt = await tx.wait();
-            console.info(
-                colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`)
-            );
+            console.info(colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`));
             console.info(colors.green(`Transaction hash: ${receipt.transactionHash}`));
-            
         });
 
         console.info("OK, liquidated all positions.");

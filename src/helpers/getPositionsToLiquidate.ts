@@ -1,5 +1,5 @@
 import { IPositionSchema } from "src/models/position";
-import { Vault } from "src/typechain";
+import { Vault } from "typechain";
 
 import PositionService, { IPositionService } from "./../services/position.service";
 import { retry } from "./helpers";
