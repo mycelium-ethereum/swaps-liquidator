@@ -3,9 +3,7 @@ import colors from "colors";
 import { Vault__factory } from "../src/typechain";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
-import LiquidationService from "../src/services/liquidation.service";
 
-const SHADOW_MODE = process.env.SHADOW_MODE === "true";
 
 const liquidationHandler = async function () {
     try {
@@ -36,34 +34,24 @@ const liquidationHandler = async function () {
         }
 
         console.log("STEP 4: Vault Call Directly");
-        const liquidataionService = new LiquidationService();
         positionsToLiquidate.forEach(async (position) => {
             console.info(
                 colors.yellow(`Liquidating ${position.isLong ? "long" : "short"} position ${position.key}...`)
             );
-            if (SHADOW_MODE) {
-                // Don't send transaction, just record in database
-                await liquidataionService.recordLiquidation(
-                    position.key,
-                    position.account,
-                    position.collateralToken,
-                    position.indexToken,
-                    position.isLong
-                );
-            } else {
-                const tx = await vault.liquidatePosition(
-                    position.account,
-                    position.collateralToken,
-                    position.indexToken,
-                    position.isLong,
-                    process.env.LIQUIDATOR_ADDRESS
-                );
-                const receipt = await tx.wait();
-                console.info(
-                    colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`)
-                );
-                console.info(colors.green(`Transaction hash: ${receipt.transactionHash}`));
-            }
+ 
+            const tx = await vault.liquidatePosition(
+                position.account,
+                position.collateralToken,
+                position.indexToken,
+                position.isLong,
+                process.env.LIQUIDATOR_ADDRESS
+            );
+            const receipt = await tx.wait();
+            console.info(
+                colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`)
+            );
+            console.info(colors.green(`Transaction hash: ${receipt.transactionHash}`));
+            
         });
 
         console.info("OK, liquidated all positions.");

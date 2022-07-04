@@ -16,7 +16,6 @@ services:
       MAX_PROCESS_BLOCK: "${MAX_PROCESS_BLOCK}"
       VAULT_ADDRESS: "${VAULT_ADDRESS}"
       START_CRON: "${START_CRON}"
-      SHADOW_MODE: "${SHADOW_MODE}"
     links:
       - mongo
 

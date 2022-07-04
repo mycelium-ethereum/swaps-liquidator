@@ -119,7 +119,8 @@ export const exponentialBackoff = async <T>({
             } else if (retries >= maxRetries) {
                 throw e;
             } else {
-                console.log(`Retrying after error: ${e.message}`);
+                console.log(`${new Date().toISOString()}: RETRY #${retries + 1}`);
+                console.error(JSON.stringify(e, null, 2));
                 retries++;
                 await sleep(Math.pow(2, retries));
             }
@@ -148,7 +149,8 @@ export const retry = async <T>({
             } else if (retries >= maxRetries) {
                 throw e;
             } else {
-                console.log(`Retrying after error: ${e.message}`);
+                console.log(`${new Date().toISOString()}: RETRY #${retries + 1}`);
+                console.error(JSON.stringify(e, null, 2));
                 retries++;
                 await sleep(timeoutSeconds);
             }

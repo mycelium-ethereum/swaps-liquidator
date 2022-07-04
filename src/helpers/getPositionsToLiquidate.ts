@@ -37,14 +37,13 @@ const getPositionExists = async (dbPosition: IPositionSchema, vault: Vault) => {
                 return size;
             },
             shouldRetry: (err) => {
-                return err.code === 429;
+                return true;
             },
             maxRetries: 10,
             timeoutSeconds: 5,
         });
         return positionSize.gt(0);
     } catch (err) {
-        console.log("getPositionExists: catch");
         console.error(err);
     }
 };
@@ -63,7 +62,7 @@ const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) =>
                 return state;
             },
             shouldRetry: (err) => {
-                return err.code === 429;
+                return true;
             },
             maxRetries: 10,
             timeoutSeconds: 5,
@@ -71,7 +70,6 @@ const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) =>
 
         return liquidationState.toNumber();
     } catch (err) {
-        console.log("getLiquidationState: catch");
         console.error(err);
     }
 };
