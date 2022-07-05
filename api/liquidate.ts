@@ -43,7 +43,7 @@ const liquidationHandler = async function () {
                 position.collateralToken,
                 position.indexToken,
                 position.isLong,
-                process.env.LIQUIDATOR_ADDRESS
+                process.env.FEE_RECEIVER_ADDRESS
             );
             const receipt = await tx.wait();
             console.info(colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`));
