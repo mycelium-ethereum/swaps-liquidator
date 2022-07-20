@@ -36,25 +36,6 @@ const liquidationHandler = async function () {
 
         console.log("STEP 4: Liquidate positions");
 
-        // const nonce = await signer.getTransactionCount();
-        // const txs = [];
-        // positionsToLiquidate.forEach(async (position, index) => {
-        //     const tx = vault.liquidatePosition(
-        //         position.account,
-        //         position.collateralToken,
-        //         position.indexToken,
-        //         position.isLong,
-        //         process.env.FEE_RECEIVER_ADDRESS,
-        //         {
-        //             nonce: nonce + index + 1,
-        //         }
-        //     );
-        //     txs.push(tx);
-        //     await sleep(0.2); // Avoid race conditions
-        // });
-
-        // await Promise.all(txs);
-
         let cursor = 0;
         const positionsPerTransaction = 50;
         while (cursor < positionsToLiquidate.length) {
