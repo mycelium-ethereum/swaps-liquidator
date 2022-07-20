@@ -1,14 +1,16 @@
 import { ethers } from "ethers";
 import colors from "colors";
-import { Vault__factory } from "../typechain";
+import { Vault__factory, PositionManager__factory } from "../typechain";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
+import { sleep } from "../src/helpers/helpers";
 
 const liquidationHandler = async function () {
     try {
         const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
         const signer = new ethers.Wallet(`0x${process.env.LIQUIDATOR_PRIVATE_KEY}`, provider);
         const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, signer);
+        const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);
 
         console.log("STEP 1: Get open positions");
 
@@ -32,25 +34,54 @@ const liquidationHandler = async function () {
             return;
         }
 
-        console.log("STEP 4: Vault Call Directly");
-        positionsToLiquidate.forEach(async (position) => {
-            console.info(
-                colors.yellow(`Liquidating ${position.isLong ? "long" : "short"} position ${position.key}...`)
-            );
+        console.log("STEP 4: Liquidate positions");
 
-            const tx = await vault.liquidatePosition(
-                position.account,
-                position.collateralToken,
-                position.indexToken,
-                position.isLong,
+        // const nonce = await signer.getTransactionCount();
+        // const txs = [];
+        // positionsToLiquidate.forEach(async (position, index) => {
+        //     const tx = vault.liquidatePosition(
+        //         position.account,
+        //         position.collateralToken,
+        //         position.indexToken,
+        //         position.isLong,
+        //         process.env.FEE_RECEIVER_ADDRESS,
+        //         {
+        //             nonce: nonce + index + 1,
+        //         }
+        //     );
+        //     txs.push(tx);
+        //     await sleep(0.2); // Avoid race conditions
+        // });
+
+        // await Promise.all(txs);
+
+        let cursor = 0;
+        const positionsPerTransaction = 50;
+        while (cursor < positionsToLiquidate.length) {
+            const positions = positionsToLiquidate.slice(cursor, cursor + positionsPerTransaction);
+
+            const accounts = positions.map((position) => position.account);
+            const collateralTokens = positions.map((position) => position.collateralToken);
+            const indexTokens = positions.map((position) => position.indexToken);
+            const isLongs = positions.map((position) => position.isLong);
+
+            console.log(colors.yellow(`Liquidating positions ${cursor} to ${cursor + positions.length}...`));
+            const tx = await positionManager.liquidatePositions(
+                accounts,
+                collateralTokens,
+                indexTokens,
+                isLongs,
                 process.env.FEE_RECEIVER_ADDRESS
             );
             const receipt = await tx.wait();
-            console.info(colors.green(`Liquidated ${position.isLong ? "long" : "short"} position ${position.key}!`));
-            console.info(colors.green(`Transaction hash: ${receipt.transactionHash}`));
-        });
+            console.log(colors.green(`Sent!`));
+            console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
 
-        console.info("OK, liquidated all positions.");
+            cursor += positionsPerTransaction;
+        }
+
+        console.log("OK, all positions liquidated.");
+
         return;
     } catch (err) {
         console.error("Error occured in liquidate.ts:handler");
