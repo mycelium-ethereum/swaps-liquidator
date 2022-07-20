@@ -41,7 +41,7 @@ interface RewardRouterV2Interface extends ethers.utils.Interface {
     "gmx()": FunctionFragment;
     "gmxVester()": FunctionFragment;
     "gov()": FunctionFragment;
-    "handleRewards(bool,bool,bool,bool,bool,bool,bool)": FunctionFragment;
+    "handleRewards(bool,bool,bool,bool,bool,bool,bool,bool)": FunctionFragment;
     "initialize(address,address,address,address,address,address,address,address,address,address,address,address,address)": FunctionFragment;
     "isInitialized()": FunctionFragment;
     "mintAndStakeGlp(address,uint256,uint256,uint256)": FunctionFragment;
@@ -110,7 +110,16 @@ interface RewardRouterV2Interface extends ethers.utils.Interface {
   encodeFunctionData(functionFragment: "gov", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "handleRewards",
-    values: [boolean, boolean, boolean, boolean, boolean, boolean, boolean]
+    values: [
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean,
+      boolean
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "initialize",
@@ -416,6 +425,7 @@ export class RewardRouterV2 extends BaseContract {
       _shouldStakeMultiplierPoints: boolean,
       _shouldClaimWeth: boolean,
       _shouldConvertWethToEth: boolean,
+      _shouldBuyGlpWithWeth: boolean,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -589,6 +599,7 @@ export class RewardRouterV2 extends BaseContract {
     _shouldStakeMultiplierPoints: boolean,
     _shouldClaimWeth: boolean,
     _shouldConvertWethToEth: boolean,
+    _shouldBuyGlpWithWeth: boolean,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -748,6 +759,7 @@ export class RewardRouterV2 extends BaseContract {
       _shouldStakeMultiplierPoints: boolean,
       _shouldClaimWeth: boolean,
       _shouldConvertWethToEth: boolean,
+      _shouldBuyGlpWithWeth: boolean,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -940,6 +952,7 @@ export class RewardRouterV2 extends BaseContract {
       _shouldStakeMultiplierPoints: boolean,
       _shouldClaimWeth: boolean,
       _shouldConvertWethToEth: boolean,
+      _shouldBuyGlpWithWeth: boolean,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1114,6 +1127,7 @@ export class RewardRouterV2 extends BaseContract {
       _shouldStakeMultiplierPoints: boolean,
       _shouldClaimWeth: boolean,
       _shouldConvertWethToEth: boolean,
+      _shouldBuyGlpWithWeth: boolean,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

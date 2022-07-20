@@ -43,6 +43,7 @@ interface PositionManagerInterface extends ethers.utils.Interface {
     "isOrderKeeper(address)": FunctionFragment;
     "isPartner(address)": FunctionFragment;
     "liquidatePosition(address,address,address,bool,address)": FunctionFragment;
+    "liquidatePositions(address[],address[],address[],bool[],address)": FunctionFragment;
     "maxGlobalLongSizes(address)": FunctionFragment;
     "maxGlobalShortSizes(address)": FunctionFragment;
     "orderBook()": FunctionFragment;
@@ -188,6 +189,10 @@ interface PositionManagerInterface extends ethers.utils.Interface {
     values: [string, string, string, boolean, string]
   ): string;
   encodeFunctionData(
+    functionFragment: "liquidatePositions",
+    values: [string[], string[], string[], boolean[], string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "maxGlobalLongSizes",
     values: [string]
   ): string;
@@ -321,6 +326,10 @@ interface PositionManagerInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "isPartner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "liquidatePosition",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "liquidatePositions",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -587,6 +596,15 @@ export class PositionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    liquidatePositions(
+      _accounts: string[],
+      _collateralTokens: string[],
+      _indexTokens: string[],
+      isLongs: boolean[],
+      _feeReceiver: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     maxGlobalLongSizes(
       arg0: string,
       overrides?: CallOverrides
@@ -806,6 +824,15 @@ export class PositionManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  liquidatePositions(
+    _accounts: string[],
+    _collateralTokens: string[],
+    _indexTokens: string[],
+    isLongs: boolean[],
+    _feeReceiver: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   maxGlobalLongSizes(
     arg0: string,
     overrides?: CallOverrides
@@ -1021,6 +1048,15 @@ export class PositionManager extends BaseContract {
       _collateralToken: string,
       _indexToken: string,
       _isLong: boolean,
+      _feeReceiver: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    liquidatePositions(
+      _accounts: string[],
+      _collateralTokens: string[],
+      _indexTokens: string[],
+      isLongs: boolean[],
       _feeReceiver: string,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -1339,6 +1375,15 @@ export class PositionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    liquidatePositions(
+      _accounts: string[],
+      _collateralTokens: string[],
+      _indexTokens: string[],
+      isLongs: boolean[],
+      _feeReceiver: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     maxGlobalLongSizes(
       arg0: string,
       overrides?: CallOverrides
@@ -1571,6 +1616,15 @@ export class PositionManager extends BaseContract {
       _collateralToken: string,
       _indexToken: string,
       _isLong: boolean,
+      _feeReceiver: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    liquidatePositions(
+      _accounts: string[],
+      _collateralTokens: string[],
+      _indexTokens: string[],
+      isLongs: boolean[],
       _feeReceiver: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
