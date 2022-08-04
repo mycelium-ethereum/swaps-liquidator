@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import colors from "colors";
-import { Vault__factory, PositionManager__factory } from "../typechain";
+import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
 import { sleep } from "../src/helpers/helpers";

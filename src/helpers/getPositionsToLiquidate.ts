@@ -1,5 +1,5 @@
 import { IPositionSchema } from "src/models/position";
-import { Vault } from "typechain";
+import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 
 import PositionService, { IPositionService } from "./../services/position.service";
 import { retry } from "./helpers";

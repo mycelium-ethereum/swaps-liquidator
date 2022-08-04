@@ -409,6 +409,11 @@
     "@ethersproject/properties" "^5.4.0"
     "@ethersproject/strings" "^5.4.0"
 
+"@mycelium-ethereum/perpetual-swaps-contracts@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@mycelium-ethereum/perpetual-swaps-contracts/-/perpetual-swaps-contracts-1.0.0.tgz#2a5fd5c445785f6b9f43eb1c345bb7c07d04bd93"
+  integrity sha512-BbxL7J2E3m6rxpklaibCpncRuvcd4hM8/k/oJShfh3zGQvDbdCBsqn/kKr+F6NgEu9rUNQMunZfNHD8G5rUd/A==
+
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
   resolved "https://registry.npmjs.org/@sindresorhus/is/-/is-0.14.0.tgz"

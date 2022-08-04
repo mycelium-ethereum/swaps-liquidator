@@ -1,7 +1,7 @@
 import { Provider } from "@ethersproject/providers";
 import PositionService, { IPositionService } from "./../services/position.service";
 import ParameterService, { IParameterService } from "./../services/parameter.service";
-import { Vault } from "../../typechain";
+import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
     const ipEventFilterIncrease = vault.filters.IncreasePosition();
