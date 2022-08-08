@@ -3,11 +3,24 @@ import colors from "colors";
 import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
-import { sleep } from "../src/helpers/helpers";
 
 const liquidationHandler = async function () {
     try {
-        const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+        const primaryProvider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+        const fallbackProvider = new ethers.providers.JsonRpcProvider(process.env.FALLBACK_RPC_URL);
+        const provider = new ethers.providers.FallbackProvider([
+            {
+                priority: 1,
+                provider: primaryProvider,
+                stallTimeout: 1500,
+            },
+            {
+                priority: 2,
+                provider: fallbackProvider,
+                stallTimeout: 1500,
+            },
+        ]);
+
         const signer = new ethers.Wallet(`0x${process.env.LIQUIDATOR_PRIVATE_KEY}`, provider);
         const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, signer);
         const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);
