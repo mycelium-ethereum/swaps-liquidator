@@ -3,11 +3,18 @@ import colors from "colors";
 import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
-import { sleep } from "../src/helpers/helpers";
+import { checkProviderHealth } from "../src/utils";
 
 const liquidationHandler = async function () {
     try {
-        const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+        let provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+
+        const isProviderHealthy = await checkProviderHealth(provider);
+        if (!isProviderHealthy) {
+            console.log(colors.red("Main provider is not healthy. Switching to fallback provider."));
+            provider = new ethers.providers.JsonRpcProvider(process.env.FALLBACK_RPC_URL);
+        }
+
         const signer = new ethers.Wallet(`0x${process.env.LIQUIDATOR_PRIVATE_KEY}`, provider);
         const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, signer);
         const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);

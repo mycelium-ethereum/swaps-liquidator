@@ -3,15 +3,19 @@ import liquidationHandler from "./api/liquidate";
 import mongoose, { MongooseOptions } from "mongoose";
 import ON_DEATH from "death";
 import express from "express";
-import cron from "node-cron";
+import { asyncInterval } from "./src/utils";
 const app = express();
+
+const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 60000;
 
 const main = async () => {
     try {
         await connectDatabase();
         console.info("*** STARTING LIQUIDATOR INTERVAL" + "***");
-        cron.schedule(process.env.START_CRON, async () => {
-            await liquidationHandler();
+        asyncInterval({
+            fn: liquidationHandler,
+            delayMs: INTERVAL,
+            runImmediately: true,
         });
 
         ON_DEATH({
