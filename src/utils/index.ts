@@ -1,3 +1,14 @@
+import { Provider } from "@ethersproject/providers";
+
+export const checkProviderHealth = async (provider: Provider) => {
+    try {
+        const block = await provider.getBlock("latest");
+        return block.number > 0;
+    } catch (err) {
+        return false;
+    }
+};
+
 export const asyncInterval = ({
     fn,
     delayMs,
