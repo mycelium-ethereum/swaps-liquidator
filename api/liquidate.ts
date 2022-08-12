@@ -63,9 +63,7 @@ const liquidationHandler = async function () {
             );
             const receipt = await tx.wait();
 
-            for (let i = 0; i < positions.length; i++) {
-                liquidations.inc();
-            }
+            liquidations.inc(positions.length);
 
             console.log(colors.green(`Sent!`));
             console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
