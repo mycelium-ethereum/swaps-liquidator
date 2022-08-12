@@ -4,11 +4,11 @@ import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/per
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
 import { checkProviderHealth } from "../src/utils";
+import { liquidationErrors, liquidations } from "../src/utils/prometheus";
 
 const liquidationHandler = async function () {
     try {
         let provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
-
         const isProviderHealthy = await checkProviderHealth(provider);
         if (!isProviderHealthy) {
             console.log(colors.red("Main provider is not healthy. Switching to fallback provider."));
@@ -62,6 +62,9 @@ const liquidationHandler = async function () {
                 process.env.FEE_RECEIVER_ADDRESS
             );
             const receipt = await tx.wait();
+
+            liquidations.inc(positions.length);
+
             console.log(colors.green(`Sent!`));
             console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
 
@@ -71,9 +74,10 @@ const liquidationHandler = async function () {
         console.log("OK, all positions liquidated.");
 
         return;
-    } catch (err) {
+    } catch (error) {
+        liquidationErrors.inc({ error: error.message });
         console.error("Error occured in liquidate.ts:handler");
-        console.error(err);
+        console.error(error);
     }
 };
 

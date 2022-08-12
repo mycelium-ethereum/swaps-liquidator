@@ -2,6 +2,7 @@ import { Provider } from "@ethersproject/providers";
 import PositionService, { IPositionService } from "./../services/position.service";
 import ParameterService, { IParameterService } from "./../services/parameter.service";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
+import { lastSyncedBlock } from "../utils/prometheus";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
     const ipEventFilterIncrease = vault.filters.IncreasePosition();
@@ -71,6 +72,7 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
         );
 
         await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
+        lastSyncedBlock.set(toBlock);
 
         fromBlock = toBlock + 1;
         if (lastBlock.number - toBlock < maxProcessBlock) lastBlock = await provider.getBlock("latest");
