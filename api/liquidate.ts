@@ -9,7 +9,6 @@ import { liquidationErrors, liquidations } from "../src/utils/prometheus";
 const liquidationHandler = async function () {
     try {
         let provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
-
         const isProviderHealthy = await checkProviderHealth(provider);
         if (!isProviderHealthy) {
             console.log(colors.red("Main provider is not healthy. Switching to fallback provider."));

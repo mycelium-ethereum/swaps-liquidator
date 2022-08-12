@@ -5,7 +5,7 @@ import ON_DEATH from "death";
 import express from "express";
 import { asyncInterval } from "./src/utils";
 import { Registry } from "prom-client";
-import { liquidationErrors, liquidations } from "./src/utils/prometheus";
+import { liquidationErrors, liquidations, lastSyncedBlock } from "./src/utils/prometheus";
 const app = express();
 
 const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 60000;
@@ -60,6 +60,7 @@ const connectDatabase = async () => {
 const registry = new Registry();
 registry.registerMetric(liquidations);
 registry.registerMetric(liquidationErrors);
+registry.registerMetric(lastSyncedBlock);
 
 app.get("/metrics", async (req, res) => {
     res.setHeader("Content-Type", registry.contentType);
