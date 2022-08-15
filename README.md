@@ -36,10 +36,3 @@ Setup the environment, then build and run the docker container.
 docker build -t mycelium-swaps-liquidator .
 docker run --env-file .env mycelium-swaps-liquidator
 ```
-
-## Pushing to GCP
-```
-yarn docker:build-prod
-docker tag mycelium-swaps-liquidator gcr.io/avian-direction-235610/mycelium-swaps-liquidator:<VERSION_NUMBER>
-docker push gcr.io/avian-direction-235610/mycelium-swaps-liquidator:<VERSION_NUMBER>
-```
