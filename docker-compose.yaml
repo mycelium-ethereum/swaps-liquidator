@@ -7,11 +7,7 @@ services:
     ports:
       - "${PORT}:8080"
     environment:
-      DB_USER: "${DB_USER}"
-      DB_PASSWORD: "${DB_PASSWORD}"
-      DB_HOST: mongo
-      DB_PORT: 27017
-      DB_NAME: "${DB_NAME}"
+      DB_URL: "mongodb://${DB_USER}:${DB_PASSWORD}@mongo:27017/${DB_NAME}"
       RPC_URL: "${RPC_URL}"
       FALLBACK_RPC_URL: "${FALLBACK_RPC_URL}"
       FEE_RECEIVER_ADDRESS: "${FEE_RECEIVER_ADDRESS}"
