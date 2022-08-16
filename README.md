@@ -17,11 +17,7 @@ To setup the environment, copy the `env.example` file to `.env` and set the vari
 | POSITION_MANAGER_ADDRESS | Address for the `PositionManager.sol` contract                                                                                                                      |
 | MAX_PROCESS_BLOCK        | The maximum number of blocks to process in a single `provider.getLogs` RPC request. This will be determined by the RPC service.  Alchemy's maximum is 2000.         |
 | START_CRON               | The crontab time syntax for how frequently the liquidator should be run                                                                                             |
-| DB_USER                  | The username to access the MongoDB database.  If using an external database, ensure this user has "readWrite" permissions.                                          |
-| DB_PASSWORD              | The password to access the MongoDB database                                                                                                                         |
-| DB_NAME                  | The name of the MongoDB database                                                                                                                                    |
-| DB_HOST                  | The hostname for the MongoDB database (This is ignored when using docker-compose)                                                                                   |
-| DB_PORT                  | The port for the MongoDB database (This is ignored when using docker-compose)                                                                                       |                                                                                                                                 |
+| DB_URL       |           | The monogDB database connection url
 
 ## Running with Docker Compose
 
@@ -40,4 +36,3 @@ Setup the environment, then build and run the docker container.
 docker build -t mycelium-swaps-liquidator .
 docker run --env-file .env mycelium-swaps-liquidator
 ```
-
