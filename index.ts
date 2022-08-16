@@ -12,6 +12,11 @@ const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 6
 
 const main = async () => {
     try {
+        // initialise all metrics to 0
+        liquidationErrors.inc(0);
+        liquidations.inc(0);
+        lastSyncedBlock.inc(0);
+
         await connectDatabase();
         console.info("*** STARTING LIQUIDATOR INTERVAL" + "***");
         asyncInterval({
