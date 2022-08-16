@@ -49,27 +49,44 @@ const liquidationHandler = async function () {
         while (cursor < positionsToLiquidate.length) {
             const positions = positionsToLiquidate.slice(cursor, cursor + positionsPerTransaction);
 
-            const accounts = positions.map((position) => position.account);
-            const collateralTokens = positions.map((position) => position.collateralToken);
-            const indexTokens = positions.map((position) => position.indexToken);
-            const isLongs = positions.map((position) => position.isLong);
-
-            console.log(colors.yellow(`Liquidating positions ${cursor} to ${cursor + positions.length}...`));
-            const tx = await positionManager.liquidatePositions(
-                accounts,
-                collateralTokens,
-                indexTokens,
-                isLongs,
-                process.env.FEE_RECEIVER_ADDRESS
-            );
-            const receipt = await tx.wait();
-
-            for (let i = 0; i < positions.length; i++) {
-                liquidations.inc();
-            }
-
-            console.log(colors.green(`Sent!`));
-            console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
+            if (positions.length === 1) {
+                // If there is only one position, sometimes the batch transaction doesn't work for some reason
+                // so we just send it separately
+                console.log(colors.yellow(`Liquidating ${positions.length} position`));
+                const position = positions[0];
+                const tx = await positionManager.liquidatePosition(
+                    position.account,
+                    position.collateralToken,
+                    position.indexToken,
+                    position.isLong,
+                    process.env.FEE_RECEIVER
+                );
+                const receipt = await tx.wait();
+                console.log(colors.green(`Sent!`));
+                console.log(colors.green(`Transaction receipt: ${receipt.transactionHash}`));
+            } else {
+                const accounts = positions.map((position) => position.account);
+                const collateralTokens = positions.map((position) => position.collateralToken);
+                const indexTokens = positions.map((position) => position.indexToken);
+                const isLongs = positions.map((position) => position.isLong);
+                
+                console.log(colors.yellow(`Liquidating positions ${cursor} to ${cursor + positions.length}...`));
+                const tx = await positionManager.liquidatePositions(
+                    accounts,
+                    collateralTokens,
+                    indexTokens,
+                    isLongs,
+                    process.env.FEE_RECEIVER_ADDRESS
+                    );
+                    const receipt = await tx.wait();
+                    
+                    for (let i = 0; i < positions.length; i++) {
+                        liquidations.inc();
+                    }
+                    
+                    console.log(colors.green(`Sent!`));
+                    console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
+                }
 
             cursor += positionsPerTransaction;
         }

@@ -44,8 +44,7 @@ app.listen(process.env.PORT, async () => {
 
 const connectDatabase = async () => {
     try {
-        const dbUrl = `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
-        await mongoose.connect(dbUrl, {
+        await mongoose.connect(process.env.DB_URL, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         } as MongooseOptions);
