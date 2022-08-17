@@ -75,6 +75,7 @@ const liquidationHandler = async function () {
         return;
     } catch (error) {
         liquidationErrors.inc({ error: error.message });
+        liquidationErrors.inc();
         console.error("Error occured in liquidate.ts:handler");
         console.error(error);
     }
