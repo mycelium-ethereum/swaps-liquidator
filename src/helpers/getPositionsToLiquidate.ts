@@ -6,22 +6,41 @@ import { retry } from "./helpers";
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
     const positionService: IPositionService = new PositionService();
 
-    const promises = openPositions.map(async (position) => {
+    let positionsToLiquidate: IPositionSchema[] = [];
+
+    for (const position of openPositions) {
         const positionExists = await getPositionExists(position, vault);
         if (!positionExists) {
             await positionService.deletePosition(position.key, position.blockNumber).catch((err) => console.log(err));
-            return;
+            continue;
         }
         const liquidationState = await getLiquidationState(position, vault);
         if (liquidationState > 0) {
             console.log("ToLiquidatePosition******************************");
             console.log(`LiquidationState: ${liquidationState}`);
             console.log(position);
-            return position;
+            positionsToLiquidate.push(position);
         }
-    });
-    const positionsToLiquidate = await Promise.all(promises);
-    return positionsToLiquidate.filter(Boolean);
+    }
+
+    return positionsToLiquidate;
+
+    // const promises = openPositions.map(async (position) => {
+    //     const positionExists = await getPositionExists(position, vault);
+    //     if (!positionExists) {
+    //         await positionService.deletePosition(position.key, position.blockNumber).catch((err) => console.log(err));
+    //         return;
+    //     }
+    //     const liquidationState = await getLiquidationState(position, vault);
+    //     if (liquidationState > 0) {
+    //         console.log("ToLiquidatePosition******************************");
+    //         console.log(`LiquidationState: ${liquidationState}`);
+    //         console.log(position);
+    //         return position;
+    //     }
+    // });
+    // const positionsToLiquidate = await Promise.all(promises);
+    // return positionsToLiquidate.filter(Boolean);
 };
 
 const getPositionExists = async (dbPosition: IPositionSchema, vault: Vault) => {
