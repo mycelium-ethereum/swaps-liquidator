@@ -3,11 +3,13 @@ import PositionService, { IPositionService } from "./../services/position.servic
 import ParameterService, { IParameterService } from "./../services/parameter.service";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import { lastSyncedBlock } from "../utils/prometheus";
+import { TypedEvent } from "@mycelium-ethereum/perpetual-swaps-contracts/typechain/commons";
+import { Result } from "ethers/lib/utils";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
-    const ipEventFilterIncrease = vault.filters.IncreasePosition();
-    const ipEventFilterClose = vault.filters.ClosePosition();
-    const ipEventFilterLiquidate = vault.filters.LiquidatePosition();
+    const eventFilterIncrease = vault.filters.IncreasePosition();
+    const eventFilterDecrease = vault.filters.DecreasePosition();
+    const eventFilterLiquidate = vault.filters.LiquidatePosition();
 
     const maxProcessBlock = Number(process.env.MAX_PROCESS_BLOCK);
 
@@ -35,41 +37,41 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
 
     while (fromBlock < lastBlock.number) {
         toBlock = fromBlock + maxProcessBlock > lastBlock.number ? lastBlock.number : fromBlock + maxProcessBlock;
+        console.log("Syncing blocks ::" + fromBlock + "-" + toBlock);
 
-        const eventsIncrease = await vault.queryFilter(ipEventFilterIncrease, fromBlock, toBlock);
-        const eventsClose = await vault.queryFilter(ipEventFilterClose, fromBlock, toBlock);
-        const eventsLiquidate = await vault.queryFilter(ipEventFilterLiquidate, fromBlock, toBlock);
+        // All position updates will trigger one of the following events:
+        const eventsIncrease = await vault.queryFilter(eventFilterIncrease, fromBlock, toBlock);
+        const eventsDecrease = await vault.queryFilter(eventFilterDecrease, fromBlock, toBlock);
+        const eventsLiquidate = await vault.queryFilter(eventFilterLiquidate, fromBlock, toBlock);
 
-        console.log("Blocks ->" + fromBlock + "-" + toBlock);
+        const allEvents = [...eventsIncrease, ...eventsDecrease, ...eventsLiquidate];
+        const orderedEvents = allEvents.sort((a, b) => {
+            if (a.blockNumber === b.blockNumber) {
+                return a.transactionIndex - b.transactionIndex;
+            }
+            return a.blockNumber - b.blockNumber;
+        });
 
-        await Promise.all(
-            eventsIncrease.map(async (event) => {
-                await positionService
-                    .createNewPosition(
-                        event.args.key,
-                        event.args.account,
-                        event.blockNumber,
-                        event.args.collateralToken,
-                        event.args.indexToken,
-                        event.args.isLong
-                    )
-                    .catch((err) => console.log(err));
-            })
-        );
-        await Promise.all(
-            eventsClose.map(async (event) => {
-                await positionService
-                    .deletePosition(event.args.key, event.blockNumber)
-                    .catch((err) => console.log(err));
-            })
-        );
-        await Promise.all(
-            eventsLiquidate.map(async (event) => {
-                await positionService
-                    .deletePosition(event.args.key, event.blockNumber)
-                    .catch((err) => console.log(err));
-            })
-        );
+        for (const event of orderedEvents) {
+            const { key, collateralToken, indexToken, account, isLong } = event.args;
+            const [size, collateralAmount, averagePrice, entryFundingRate] = await vault.positions(event.args.key);
+            if (size.eq(0)) {
+                await positionService.deletePosition(key, event.blockNumber);
+            } else {
+                await positionService.upsertPosition({
+                    key,
+                    collateralToken,
+                    indexToken,
+                    account,
+                    isLong,
+                    size: size.toString(),
+                    collateralAmount: collateralAmount.toString(),
+                    averagePrice: averagePrice.toString(),
+                    entryFundingRate: entryFundingRate.toString(),
+                    blockNumber: event.blockNumber,
+                });
+            }
+        }
 
         await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
         lastSyncedBlock.set(toBlock);

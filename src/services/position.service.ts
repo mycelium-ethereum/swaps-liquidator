@@ -1,57 +1,95 @@
-import Position,{ IPositionSchema }  from "../models/position";
-
-
-
+import Position, { IPositionSchema } from "../models/position";
 
 export interface IPositionService {
-    getPositions:() => Promise<IPositionSchema[]>;
-    createNewPosition: (
-        key: string,
-        account: string,
-        blockNumber:number,
-        collateralToken: string,
-        indexToken:string,
-        isLong: boolean
-    ) => Promise<void>;
+    getPositions: () => Promise<IPositionSchema[]>;
+    createNewPosition: (IPositionSchema) => Promise<IPositionSchema>;
     deletePosition: (key: string, blockNumber: number) => Promise<void>;
+    updatePosition: (params: {
+        key: string;
+        blockNumber: number;
+        collateralAmount?: string;
+        size?: string;
+        averagePrice?: string;
+        entryFundingRate?: string;
+    }) => Promise<IPositionSchema>;
+    upsertPosition: (params: IPositionSchema) => Promise<IPositionSchema>;
 }
 
 class PositionService implements IPositionService {
-
-    async getPositions():Promise<IPositionSchema[]>{
+    async getPositions(): Promise<IPositionSchema[]> {
         const docs = await Position.find();
 
         return docs;
     }
 
-    async createNewPosition(
-        key: string,
-        account: string,
-        blockNumber:number,
-        collateralToken: string,
-        indexToken:string,
-        isLong: boolean
-    ): Promise<void> {
+    async createNewPosition(params): Promise<IPositionSchema> {
         try {
-            const foundPosition = await Position.findOne({ key });
-
+            const foundPosition = await Position.findOne({ key: params.key });
             if (foundPosition) {
-                return;
+                return foundPosition;
             }
 
-            const newPosition = new Position({ key,
-                account,
-                blockNumber,
-                collateralToken,
-                indexToken,
-                isLong });
+            const newPosition = new Position(params);
 
             await newPosition.save();
-            console.log(`New position is saved. Key: ${key}`);
+            console.log(`New position is saved. Key: ${params.key}`);
+            return newPosition;
         } catch (err: any) {
             throw new Error(err);
         }
     }
+
+    async updatePosition(params: {
+        key: string;
+        blockNumber: number;
+        collateralAmount?: string;
+        size?: string;
+        averagePrice?: string;
+        entryFundingRate?: string;
+    }): Promise<IPositionSchema> {
+        try {
+            const foundPosition = await Position.findOne({ key: params.key });
+            if (!foundPosition) {
+                throw new Error(`Position not found. Key: ${params.key}`);
+            }
+
+            foundPosition.blockNumber = params.blockNumber;
+            if (params.collateralAmount) foundPosition.collateralAmount = params.collateralAmount;
+            if (params.size) foundPosition.size = params.size;
+            if (params.averagePrice) foundPosition.averagePrice = params.averagePrice;
+            if (params.entryFundingRate) foundPosition.entryFundingRate = params.entryFundingRate;
+            await foundPosition.save();
+            console.log(`Position is updated. Key: ${params.key}`);
+            return foundPosition;
+        } catch (err) {
+            throw new Error(err);
+        }
+    }
+
+    async upsertPosition(params: IPositionSchema): Promise<IPositionSchema> {
+        try {
+            const foundPosition = await Position.findOne({ key: params.key });
+            if (foundPosition) {
+                foundPosition.blockNumber = params.blockNumber;
+                foundPosition.collateralAmount = params.collateralAmount;
+                foundPosition.size = params.size;
+                foundPosition.averagePrice = params.averagePrice;
+                foundPosition.entryFundingRate = params.entryFundingRate;
+                await foundPosition.save();
+                console.log(`Position is updated. Key: ${params.key}`);
+                return foundPosition;
+            } else {
+                const newPosition = new Position(params);
+
+                await newPosition.save();
+                console.log(`New position is saved. Key: ${params.key}`);
+                return newPosition;
+            }
+        } catch (err: any) {
+            throw new Error(err);
+        }
+    }
+
     async deletePosition(key: string, blockNumber: number): Promise<void> {
         try {
             await Position.deleteMany({ key: key, blockNumber: { $lte: blockNumber } });

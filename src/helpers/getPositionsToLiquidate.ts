@@ -1,23 +1,27 @@
 import { IPositionSchema } from "src/models/position";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 
-import PositionService, { IPositionService } from "./../services/position.service";
 import { retry } from "./helpers";
+import { BigNumber } from "ethers";
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
-    const positionService: IPositionService = new PositionService();
+    const maxLeverage = await vault.maxLeverage();
 
     const promises = openPositions.map(async (position) => {
-        const positionExists = await getPositionExists(position, vault);
-        if (!positionExists) {
-            await positionService.deletePosition(position.key, position.blockNumber).catch((err) => console.log(err));
-            return;
-        }
-        const liquidationState = await getLiquidationState(position, vault);
-        if (liquidationState > 0) {
-            console.log("ToLiquidatePosition******************************");
-            console.log(`LiquidationState: ${liquidationState}`);
-            console.log(position);
-            return position;
+        const price = await getTokenPrice(position.indexToken, position.isLong, vault);
+        const margin = getMargin(position, price);
+        const size = BigNumber.from(position.size);
+
+        const shouldLiquidate = margin.mul(maxLeverage).lt(size);
+
+        if (shouldLiquidate) {
+            // Confirm that the position is liquidatible
+            const liquidationState = await getLiquidationState(position, vault);
+            if (liquidationState > 0) {
+                console.log("ToLiquidatePosition******************************");
+                console.log(`LiquidationState: ${liquidationState}`);
+                console.log(position);
+                return position;
+            }
         }
     });
     const positionsToLiquidate = await Promise.all(promises);
@@ -72,6 +76,38 @@ const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) =>
     } catch (err) {
         console.error(err);
     }
+};
+
+type PriceCache = {
+    [key: string]: {
+        value: BigNumber;
+        timestamp: number;
+    };
+};
+const priceCache: PriceCache = {};
+const getTokenPrice = async (address: string, isLong: boolean, vault: Vault) => {
+    const key = `${address}-${isLong}`;
+    const cacheExpiry = 60 * 1000; // 1 minute
+    if (priceCache[key] && priceCache[key].timestamp + cacheExpiry < Date.now()) {
+        return priceCache[key].value;
+    } else {
+        const price = isLong ? await vault.getMinPrice(address) : await vault.getMaxPrice(address);
+        priceCache[key] = {
+            value: price,
+            timestamp: Date.now(),
+        };
+        return price;
+    }
+};
+
+const getMargin = (position: IPositionSchema, price: BigNumber) => {
+    const collateral = BigNumber.from(position.collateralAmount);
+    const size = BigNumber.from(position.size);
+    const averagePrice = BigNumber.from(position.averagePrice);
+    const priceDelta = position.isLong ? price.sub(averagePrice) : averagePrice.sub(price);
+
+    const delta = size.mul(priceDelta).div(averagePrice);
+    return collateral.add(delta);
 };
 
 export default getPositionsToLiquidate;
