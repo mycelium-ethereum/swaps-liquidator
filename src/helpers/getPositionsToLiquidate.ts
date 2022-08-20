@@ -2,16 +2,18 @@ import { IPositionSchema } from "src/models/position";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 
 import { retry } from "./helpers";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
+
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
-    const maxLeverage = await vault.maxLeverage();
+    const maxLeverageBps = await vault.maxLeverage();
+    const basisPointsDivisor = 10000;
 
     const promises = openPositions.map(async (position) => {
         const price = await getTokenPrice(position.indexToken, position.isLong, vault);
         const margin = getMargin(position, price);
         const size = BigNumber.from(position.size);
 
-        const shouldLiquidate = margin.mul(maxLeverage).lt(size);
+        const shouldLiquidate = margin.mul(maxLeverageBps).lt(size.mul(basisPointsDivisor));
 
         if (shouldLiquidate) {
             // Confirm that the position is liquidatible
