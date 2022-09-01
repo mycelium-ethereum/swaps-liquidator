@@ -4,7 +4,8 @@ import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/per
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
 import { checkProviderHealth } from "../src/utils";
-import { liquidationErrors, liquidations } from "../src/utils/prometheus";
+import { liquidationErrors } from "../src/utils/prometheus";
+import { liquidateInBatches, liquidateOneByOne } from "../src/helpers/liquidatePositions";
 
 const liquidationHandler = async function () {
     try {
@@ -42,50 +43,7 @@ const liquidationHandler = async function () {
         }
 
         console.log("STEP 4: Liquidate positions");
-
-        let cursor = 0;
-        const positionsPerTransaction = 50;
-        while (cursor < positionsToLiquidate.length) {
-            const positions = positionsToLiquidate.slice(cursor, cursor + positionsPerTransaction);
-            if (positions.length === 1) {
-                // If there is only one position, sometimes the batch transaction doesn't work for some reason
-                // so we just send it separately
-                console.log(colors.yellow(`Liquidating ${positions.length} position`));
-                const position = positions[0];
-                const tx = await positionManager.liquidatePosition(
-                    position.account,
-                    position.collateralToken,
-                    position.indexToken,
-                    position.isLong,
-                    process.env.FEE_RECEIVER_ADDRESS
-                );
-                const receipt = await tx.wait();
-                console.log(colors.green(`Sent!`));
-                console.log(colors.green(`Transaction receipt: ${receipt.transactionHash}`));
-            } else {
-                const accounts = positions.map((position) => position.account);
-                const collateralTokens = positions.map((position) => position.collateralToken);
-                const indexTokens = positions.map((position) => position.indexToken);
-                const isLongs = positions.map((position) => position.isLong);
-
-                console.log(colors.yellow(`Liquidating positions ${cursor} to ${cursor + positions.length}...`));
-                const tx = await positionManager.liquidatePositions(
-                    accounts,
-                    collateralTokens,
-                    indexTokens,
-                    isLongs,
-                    process.env.FEE_RECEIVER_ADDRESS
-                );
-                const receipt = await tx.wait();
-
-                console.log(colors.green(`Sent!`));
-                console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
-            }
-
-            liquidations.inc(positions.length);
-            cursor += positionsPerTransaction;
-        }
-
+        await liquidateInBatches(positionsToLiquidate, positionManager);
         console.log("OK, all positions liquidated.");
 
         return;
