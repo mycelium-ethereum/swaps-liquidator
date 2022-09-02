@@ -10,7 +10,6 @@ const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSch
 
     const positionsOverMaxLeverage: IPositionSchema[] = [];
     for (const position of openPositions) {
-        console.log(`Checking position ${position.key}`);
         const size = BigNumber.from(position.size);
         const liquidationMargin = size.mul(basisPointsDivisor).div(maxLeverageBps);
 
@@ -19,14 +18,7 @@ const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSch
         const collateral = BigNumber.from(position.collateralAmount);
         const delta = getDelta(position, price);
         const remainingCollateral = collateral.add(delta);
-
-
-        console.log(`Remaining collateral: ${ethers.utils.formatUnits(remainingCollateral, 30)}`);
-        console.log(`Size: ${ethers.utils.formatUnits(size, 30)}`);
-        console.log(`Price: ${ethers.utils.formatUnits(price, 30)}`);
-        console.log(`Delta: ${ethers.utils.formatUnits(delta, 30)}`);
-        console.log(`Liquidation margin: ${ethers.utils.formatUnits(liquidationMargin, 30)}`);
-
+        
         if (remainingCollateral.lte(liquidationMargin)) {
             positionsOverMaxLeverage.push(position);
         }
