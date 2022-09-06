@@ -3,8 +3,7 @@ import PositionService, { IPositionService } from "./../services/position.servic
 import ParameterService, { IParameterService } from "./../services/parameter.service";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import { lastSyncedBlock } from "../utils/prometheus";
-import { TypedEvent } from "@mycelium-ethereum/perpetual-swaps-contracts/typechain/commons";
-import { Result } from "ethers/lib/utils";
+import { retry } from "./helpers";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
     const eventFilterIncrease = vault.filters.IncreasePosition();
@@ -54,7 +53,7 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
 
         for (const event of orderedEvents) {
             const { key, collateralToken, indexToken, account, isLong } = event.args;
-            const [size, collateralAmount, averagePrice, entryFundingRate] = await vault.positions(event.args.key);
+            const [size, collateralAmount, averagePrice, entryFundingRate] = await getVaultPosition(vault, key);
             if (size.eq(0)) {
                 await positionService.deletePosition(key, event.blockNumber);
             } else {
@@ -86,3 +85,15 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
 };
 
 export default getOpenPositions;
+
+async function getVaultPosition(vault: Vault, key: string) {
+    return retry({
+        fn: async () => {
+            const position = await vault.positions(key);
+            return position;
+        },
+        shouldRetry: (err) => true,
+        maxRetries: 10,
+        timeoutSeconds: 5,
+    });
+}
