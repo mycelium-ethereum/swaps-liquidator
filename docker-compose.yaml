@@ -18,6 +18,7 @@ services:
       VAULT_ADDRESS: "${VAULT_ADDRESS}"
       POSITION_MANAGER_ADDRESS: "${POSITION_MANAGER_ADDRESS}"
       INTERVAL_MS: "${INTERVAL_MS}"
+      MAX_LEVERAGE_BPS: "${MAX_LEVERAGE_BPS}"
     links:
       - mongo
 
