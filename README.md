@@ -9,7 +9,6 @@ To setup the environment, copy the `env.example` file to `.env` and set the vari
 | Variable Name            | Description                                                                                                                                                         |
 |--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | RPC_URL                  | An url for the JsonHttpProvider to make RPC requests.                                                                                                               |
-| FEE_RECEIVER_ADDRESS     | The address to which liquidation fees should be sent                                                                                                                |
 | LIQUIDATOR_PRIVATE_KEY   | The private key of the liquidator wallet. This will need to be set in the `PositionManager.sol` contract. This can be checked by calling the `isLiquidator` method. |
 | PORT                     | Port which exposes the liquidator                                                                                                                                   |
 | FROM_BLOCK               | Block number from which the liquidator should start syncing.   A good choice would be the block number that the `Vault.sol` contract was deployed.                  |

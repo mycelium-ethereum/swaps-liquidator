@@ -9,6 +9,7 @@ import { liquidationErrors, liquidations, lastSyncedBlock } from "./src/utils/pr
 const app = express();
 
 const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 60000;
+const IS_PAUSED = process.env.IS_PAUSED === "true";
 
 const main = async () => {
     try {
@@ -44,7 +45,9 @@ app.get("/", function (_req, res) {
 
 app.listen(process.env.PORT, async () => {
     console.info("*** Server started on port " + process.env.PORT + " ***");
-    await main();
+    if (!IS_PAUSED) {
+        await main();
+    }
 });
 
 const connectDatabase = async () => {
