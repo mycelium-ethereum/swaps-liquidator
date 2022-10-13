@@ -2,6 +2,7 @@ import Position, { IPositionSchema } from "../models/position";
 
 export interface IPositionService {
     getPositions: () => Promise<IPositionSchema[]>;
+    getPosition: (key: string) => Promise<IPositionSchema | null>;
     createNewPosition: (IPositionSchema) => Promise<IPositionSchema>;
     deletePosition: (key: string, blockNumber: number) => Promise<void>;
     updatePosition: (params: {
@@ -20,6 +21,11 @@ class PositionService implements IPositionService {
         const docs = await Position.find();
 
         return docs;
+    }
+
+    async getPosition(key: string): Promise<IPositionSchema | null> {
+        const position = await Position.findOne({ key });
+        return position;
     }
 
     async createNewPosition(params): Promise<IPositionSchema> {
