@@ -116,7 +116,8 @@ async function handleDecreasePosition(event: LogDescription, positionService: Po
         position.size = size.toString();
         await positionService.updatePosition(position);
     } else {
-        throw new Error(`DECREASE_POSITION: Position not found ${event.args.key}`);
+        // This should never happen, but we'll log it so we don't block the process
+        console.log(`DECREASE POSITION ERROR: Position not found ${event.args.key}`);
     }
 }
 
@@ -127,7 +128,8 @@ async function handleUpdatePosition(event: LogDescription, positionService: Posi
         position.entryFundingRate = event.args.entryFundingRate.toString();
         await positionService.updatePosition(position);
     } else {
-        throw new Error(`UPDATE_POSITION: Position not found ${event.args.key}`);
+        // This should never happen, but we'll log it so we don't block the process
+        console.log(`UPDATE POSITION ERROR: Position not found ${event.args.key}`);
     }
 }
 
@@ -138,15 +140,3 @@ async function handleLiquidatePosition(event: LogDescription, positionService: P
 async function handleClosePosition(event: LogDescription, positionService: PositionService, blockNumber: number) {
     await positionService.deletePosition(event.args.key, blockNumber);
 }
-
-// async function getVaultPosition(vault: Vault, key: string) {
-//     return retry({
-//         fn: async () => {
-//             const position = await vault.positions(key);
-//             return position;
-//         },
-//         shouldRetry: (err) => true,
-//         maxRetries: 10,
-//         timeoutSeconds: 5,
-//     });
-// }
