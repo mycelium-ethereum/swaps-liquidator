@@ -116,7 +116,7 @@ async function handleDecreasePosition(event: LogDescription, positionService: Po
         position.size = size.toString();
         await positionService.updatePosition(position);
     } else {
-        throw new Error("DECREASE_POSITION: Position not found");
+        throw new Error(`DECREASE_POSITION: Position not found ${event.args.key}`);
     }
 }
 
@@ -127,7 +127,7 @@ async function handleUpdatePosition(event: LogDescription, positionService: Posi
         position.entryFundingRate = event.args.entryFundingRate.toString();
         await positionService.updatePosition(position);
     } else {
-        throw new Error("UPDATE_POSITION: Position not found");
+        throw new Error(`UPDATE_POSITION: Position not found ${event.args.key}`);
     }
 }
 
