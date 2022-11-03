@@ -7,7 +7,6 @@ import { ethers } from "ethers";
 export const liquidateInBatches = async (positions: IPositionSchema[], positionManager: PositionManager) => {
     let cursor = 0;
     const positionsPerTransaction = 50;
-    const feeReceiver = await positionManager.signer.getAddress();
     while (cursor < positions.length) {
         const batchPositions = positions.slice(cursor, cursor + positionsPerTransaction);
 
@@ -20,7 +19,7 @@ export const liquidateInBatches = async (positions: IPositionSchema[], positionM
                 position.collateralToken,
                 position.indexToken,
                 position.isLong,
-                feeReceiver
+                process.env.FEE_RECEIVER
             );
 
             const receipt = await tx.wait();
@@ -46,7 +45,7 @@ export const liquidateInBatches = async (positions: IPositionSchema[], positionM
                 collateralTokens,
                 indexTokens,
                 isLongs,
-                feeReceiver
+                process.env.FEE_RECEIVER
             );
 
             const receipt = await tx.wait();
@@ -60,7 +59,6 @@ export const liquidateInBatches = async (positions: IPositionSchema[], positionM
 };
 
 export const liquidateOneByOne = async (positions: IPositionSchema[], positionManager: PositionManager) => {
-    const feeReceiver = await positionManager.signer.getAddress();
     for (const position of positions) {
         console.log(colors.yellow(`Liquidating position ${position.account}`));
         const tx = await positionManager.liquidatePosition(
@@ -68,7 +66,7 @@ export const liquidateOneByOne = async (positions: IPositionSchema[], positionMa
             position.collateralToken,
             position.indexToken,
             position.isLong,
-            feeReceiver
+            process.env.FEE_RECEIVER
         );
         const receipt = await tx.wait();
         console.log(colors.green(`Sent!`));
