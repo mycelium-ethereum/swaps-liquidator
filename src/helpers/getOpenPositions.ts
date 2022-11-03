@@ -12,27 +12,24 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
     const positionService: IPositionService = new PositionService();
     const parameterService: IParameterService = new ParameterService();
 
-    let fromBlock = Number(process.env.FROM_BLOCK);
+    let cursor = Number(process.env.FROM_BLOCK);
 
     const processedLastBlock = await parameterService.getParameter("PROCESSED_LAST_BLOCK");
 
     if (processedLastBlock) {
-        fromBlock = Number(processedLastBlock.value);
+        cursor = Number(processedLastBlock.value);
         console.log("processedLastBlock =" + processedLastBlock.value);
     } else {
-        parameterService.createNewParameter("PROCESSED_LAST_BLOCK", fromBlock.toString());
+        parameterService.createNewParameter("PROCESSED_LAST_BLOCK", cursor.toString());
     }
-
-    console.log("fromBlock =" + fromBlock);
 
     let lastBlock = await provider.getBlock("latest");
 
     console.log("lastBlock =" + lastBlock.number);
 
-    let toBlock = fromBlock;
-
-    while (fromBlock < lastBlock.number) {
-        toBlock = fromBlock + maxProcessBlock > lastBlock.number ? lastBlock.number : fromBlock + maxProcessBlock;
+    while (cursor < lastBlock.number) {
+        const fromBlock = cursor;
+        const toBlock = Math.min(cursor + maxProcessBlock, lastBlock.number);
         console.log("Syncing blocks ::" + fromBlock + "-" + toBlock);
 
         const logs = await provider.getLogs({
@@ -65,8 +62,7 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
         await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
         lastSyncedBlock.set(toBlock);
 
-        fromBlock = toBlock + 1;
-        if (lastBlock.number - toBlock < maxProcessBlock) lastBlock = await provider.getBlock("latest");
+        cursor = toBlock + 1;
     }
 
     const openPositions = await positionService.getPositions();
