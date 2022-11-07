@@ -4,8 +4,8 @@ import { Vault__factory, PositionManager__factory } from "@mycelium-ethereum/per
 import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
 import { checkProviderHealth } from "../src/utils";
-import { liquidationErrors } from "../src/utils/prometheus";
-import { liquidateInBatches, liquidateOneByOne } from "../src/helpers/liquidatePositions";
+import { ethBalance, liquidationErrors } from "../src/utils/prometheus";
+import { liquidateInBatches } from "../src/helpers/liquidatePositions";
 
 const liquidationHandler = async function () {
     try {
@@ -19,6 +19,11 @@ const liquidationHandler = async function () {
         const signer = new ethers.Wallet(`0x${process.env.LIQUIDATOR_PRIVATE_KEY}`, provider);
         const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, signer);
         const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);
+
+        // Update ETH balance metric
+        const balanceWei = await signer.getBalance();
+        const balanceEth = ethers.utils.formatEther(balanceWei);
+        ethBalance.set(parseFloat(balanceEth));
 
         console.log("STEP 1: Get open positions");
 
