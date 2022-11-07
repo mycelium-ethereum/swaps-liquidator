@@ -10,7 +10,8 @@
         "dev": "nodemon -e ts --exec \"npm run start\"",
         "prepare": "husky install",
         "start": "ts-node ./index.ts",
-        "docker:build": "docker build -t swaps-liquidator --platform linux/amd64 ."
+        "docker:build": "docker build -t swaps-liquidator --platform linux/amd64 .",
+        "docker:push": "docker tag swaps-liquidator gcr.io/avian-direction-235610/swaps-liquidator && docker push gcr.io/avian-direction-235610/swaps-liquidator"
     },
     "devDependencies": {
         "commitizen": "^4.2.4",
