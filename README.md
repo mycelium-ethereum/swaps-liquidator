@@ -40,6 +40,6 @@ docker run --env-file .env mycelium-swaps-liquidator
 ## Push image to gcp
 ```
 docker build -t swaps-liquidator --platform linux/amd64 .
-docker tag swaps-liquidator gcr.io/avian-direction-235610/swaps-keepers:<version>
+docker tag swaps-liquidator gcr.io/avian-direction-235610/swaps-liquidator:<version>
 docker push gcr.io/avian-direction-235610/swaps-liquidator:<version>
 ```
