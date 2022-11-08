@@ -1,7 +1,7 @@
 import { IPositionSchema } from "../models/position";
 import colors from "colors";
 import { PositionManager } from "@mycelium-ethereum/perpetual-swaps-contracts";
-import { liquidations } from "../utils/prometheus";
+import { liquidations, transactionErrors } from "../utils/prometheus";
 import { ethers } from "ethers";
 
 export const liquidateInBatches = async (positions: IPositionSchema[], positionManager: PositionManager) => {
@@ -26,6 +26,7 @@ export const liquidateInBatches = async (positions: IPositionSchema[], positionM
 
             console.log(colors.green(`Liquidated position ${position.key}`));
             console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
+            liquidations.inc();
         } else {
             const accounts = batchPositions.map((position) => position.account);
             const collateralTokens = batchPositions.map((position) => position.collateralToken);
@@ -52,8 +53,22 @@ export const liquidateInBatches = async (positions: IPositionSchema[], positionM
 
             console.log(colors.green(`Sent!`));
             console.log(colors.green(`Transaction hash: ${receipt.transactionHash}`));
+
+            const errorEvents = receipt.events?.filter((event) => event.event === "LiquidationError") || [];
+            if (errorEvents.length) {
+                console.log(colors.red(`${errorEvents.length} liquidation errors occured`));
+                errorEvents.forEach((event) => {
+                    transactionErrors.inc();
+                    console.log({
+                        type: event.event,
+                        account: event.args?.account,
+                        indexToken: event.args?.indexToken,
+                        reason: event.args?.reason,
+                    });
+                });
+            }
+            liquidations.inc(batchPositions.length - errorEvents.length);
         }
-        liquidations.inc(batchPositions.length);
         cursor += positionsPerTransaction;
     }
 };
