@@ -3,80 +3,66 @@ import PositionService, { IPositionService } from "./../services/position.servic
 import ParameterService, { IParameterService } from "./../services/parameter.service";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import { lastSyncedBlock } from "../utils/prometheus";
-import { retry } from "./helpers";
+import { LogDescription } from "ethers/lib/utils";
+import { BigNumber } from "ethers";
 
 const getOpenPositions = async (vault: Vault, provider: Provider) => {
-    const eventFilterIncrease = vault.filters.IncreasePosition();
-    const eventFilterDecrease = vault.filters.DecreasePosition();
-    const eventFilterLiquidate = vault.filters.LiquidatePosition();
-
     const maxProcessBlock = Number(process.env.MAX_PROCESS_BLOCK);
 
     const positionService: IPositionService = new PositionService();
     const parameterService: IParameterService = new ParameterService();
 
-    let fromBlock = Number(process.env.FROM_BLOCK);
+    let cursor = Number(process.env.FROM_BLOCK);
 
     const processedLastBlock = await parameterService.getParameter("PROCESSED_LAST_BLOCK");
 
     if (processedLastBlock) {
-        fromBlock = Number(processedLastBlock.value);
+        cursor = Number(processedLastBlock.value);
         console.log("processedLastBlock =" + processedLastBlock.value);
     } else {
-        parameterService.createNewParameter("PROCESSED_LAST_BLOCK", fromBlock.toString());
+        parameterService.createNewParameter("PROCESSED_LAST_BLOCK", cursor.toString());
     }
-
-    console.log("fromBlock =" + fromBlock);
 
     let lastBlock = await provider.getBlock("latest");
 
     console.log("lastBlock =" + lastBlock.number);
 
-    let toBlock = fromBlock;
-
-    while (fromBlock < lastBlock.number) {
-        toBlock = fromBlock + maxProcessBlock > lastBlock.number ? lastBlock.number : fromBlock + maxProcessBlock;
+    while (cursor < lastBlock.number) {
+        const fromBlock = cursor;
+        const toBlock = Math.min(cursor + maxProcessBlock, lastBlock.number);
         console.log("Syncing blocks ::" + fromBlock + "-" + toBlock);
 
-        // All position updates will trigger one of the following events:
-        const eventsIncrease = await vault.queryFilter(eventFilterIncrease, fromBlock, toBlock);
-        const eventsDecrease = await vault.queryFilter(eventFilterDecrease, fromBlock, toBlock);
-        const eventsLiquidate = await vault.queryFilter(eventFilterLiquidate, fromBlock, toBlock);
-
-        const allEvents = [...eventsIncrease, ...eventsDecrease, ...eventsLiquidate];
-        const orderedEvents = allEvents.sort((a, b) => {
-            if (a.blockNumber === b.blockNumber) {
-                return a.transactionIndex - b.transactionIndex;
-            }
-            return a.blockNumber - b.blockNumber;
+        const logs = await provider.getLogs({
+            address: vault.address,
+            fromBlock,
+            toBlock,
         });
 
-        for (const event of orderedEvents) {
-            const { key, collateralToken, indexToken, account, isLong } = event.args;
-            const [size, collateralAmount, averagePrice, entryFundingRate] = await getVaultPosition(vault, key);
-            if (size.eq(0)) {
-                await positionService.deletePosition(key, event.blockNumber);
-            } else {
-                await positionService.upsertPosition({
-                    key,
-                    collateralToken,
-                    indexToken,
-                    account,
-                    isLong,
-                    size: size.toString(),
-                    collateralAmount: collateralAmount.toString(),
-                    averagePrice: averagePrice.toString(),
-                    entryFundingRate: entryFundingRate.toString(),
-                    blockNumber: event.blockNumber,
-                });
+        for (const log of logs) {
+            const event = vault.interface.parseLog(log);
+            switch (event.name) {
+                case "IncreasePosition":
+                    await handleIncreasePosition(event, positionService, log.blockNumber);
+                    break;
+                case "DecreasePosition":
+                    await handleDecreasePosition(event, positionService);
+                    break;
+                case "LiquidatePosition":
+                    await handleLiquidatePosition(event, positionService, log.blockNumber);
+                    break;
+                case "UpdatePosition":
+                    await handleUpdatePosition(event, positionService);
+                    break;
+                case "ClosePosition":
+                    await handleClosePosition(event, positionService, log.blockNumber);
+                    break;
             }
         }
 
         await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
         lastSyncedBlock.set(toBlock);
 
-        fromBlock = toBlock + 1;
-        if (lastBlock.number - toBlock < maxProcessBlock) lastBlock = await provider.getBlock("latest");
+        cursor = toBlock + 1;
     }
 
     const openPositions = await positionService.getPositions();
@@ -86,14 +72,67 @@ const getOpenPositions = async (vault: Vault, provider: Provider) => {
 
 export default getOpenPositions;
 
-async function getVaultPosition(vault: Vault, key: string) {
-    return retry({
-        fn: async () => {
-            const position = await vault.positions(key);
-            return position;
-        },
-        shouldRetry: (err) => true,
-        maxRetries: 10,
-        timeoutSeconds: 5,
-    });
+async function handleIncreasePosition(event: LogDescription, positionService: PositionService, blockNumber: number) {
+    const position = await positionService.getPosition(event.args.key);
+    if (position) {
+        const collateralAmount = BigNumber.from(position.collateralAmount)
+            .add(event.args.collateralDelta)
+            .sub(event.args.fee);
+        const size = event.args.sizeDelta.add(position.size);
+
+        position.collateralAmount = collateralAmount.toString();
+        position.size = size.toString();
+        await positionService.updatePosition(position);
+    } else {
+        const collateral = event.args.collateralDelta.sub(event.args.fee);
+        await positionService.createNewPosition({
+            key: event.args.key,
+            collateralToken: event.args.collateralToken,
+            indexToken: event.args.indexToken,
+            account: event.args.account,
+            isLong: event.args.isLong,
+            size: event.args.sizeDelta.toString(),
+            collateralAmount: collateral.toString(),
+            averagePrice: "0",
+            entryFundingRate: "0",
+            blockNumber,
+        });
+    }
+}
+
+async function handleDecreasePosition(event: LogDescription, positionService: PositionService) {
+    const position = await positionService.getPosition(event.args.key);
+    if (position) {
+        const collateralAmount = BigNumber.from(position.collateralAmount)
+            .sub(event.args.collateralDelta)
+            .sub(event.args.fee);
+        const size = BigNumber.from(position.size).sub(event.args.sizeDelta);
+
+        position.collateralAmount = collateralAmount.toString();
+        position.size = size.toString();
+        await positionService.updatePosition(position);
+    } else {
+        // This should never happen, but we'll log it so we don't block the process
+        console.log(`DECREASE POSITION ERROR: Position not found ${event.args.key}`);
+    }
+}
+
+async function handleUpdatePosition(event: LogDescription, positionService: PositionService) {
+    const position = await positionService.getPosition(event.args.key);
+    if (position) {
+        position.averagePrice = event.args.averagePrice.toString();
+        position.entryFundingRate = event.args.entryFundingRate.toString();
+        await positionService.updatePosition(position);
+    } else {
+        // This should never happen, but we'll log it so we don't block the process
+        console.log(`UPDATE POSITION ERROR: Position not found ${event.args.key}`);
+    }
+}
+
+async function handleLiquidatePosition(event: LogDescription, positionService: PositionService, blockNumber: number) {
+    await positionService.deletePosition(event.args.key, blockNumber);
+}
+
+async function handleClosePosition(event: LogDescription, positionService: PositionService, blockNumber: number) {
+    await positionService.deletePosition(event.args.key, blockNumber);
 }

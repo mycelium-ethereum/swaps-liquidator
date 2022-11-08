@@ -1,25 +1,30 @@
 import { IPositionSchema } from "src/models/position";
 import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
-import Cache from "node-cache";
 import { retry } from "./helpers";
-import { BigNumber, ethers } from "ethers";
+import { BigNumber } from "ethers";
+import { getCumulativeFundingRate, getLiquidationFee, getMarginFeeBps, getTokenPrice } from "./cachedGetters";
+
+const MAX_LEVERAGE_BPS = process.env.MAX_LEVERAGE_BPS
+    ? BigNumber.from(process.env.MAX_LEVERAGE_BPS)
+    : BigNumber.from(500000);
+const BASIS_POINTS_DIVISOR = 10000;
 
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
-    const maxLeverageBps = process.env.MAX_LEVERAGE_BPS ? BigNumber.from(process.env.MAX_LEVERAGE_BPS) : BigNumber.from(500000);
-    const basisPointsDivisor = 10000;
-
     const positionsOverMaxLeverage: IPositionSchema[] = [];
     for (const position of openPositions) {
         const size = BigNumber.from(position.size);
-        const liquidationMargin = size.mul(basisPointsDivisor).div(maxLeverageBps);
-
+        const liquidationMargin = size.mul(BASIS_POINTS_DIVISOR).div(MAX_LEVERAGE_BPS);
 
         const price = await getTokenPrice(position.indexToken, position.isLong, vault);
         const collateral = BigNumber.from(position.collateralAmount);
         const delta = getDelta(position, price);
         const remainingCollateral = collateral.add(delta);
-        
-        if (remainingCollateral.lte(liquidationMargin)) {
+
+        const fees = await calculateFees(position, vault);
+
+        if (remainingCollateral.lt(fees)) {
+            positionsOverMaxLeverage.push(position);
+        } else if (remainingCollateral.lte(liquidationMargin)) {
             positionsOverMaxLeverage.push(position);
         }
     }
@@ -28,41 +33,19 @@ const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSch
 
     // Confirm in contract that position is liquidatible
     const positionsToLiquidate: IPositionSchema[] = [];
-    await Promise.all(positionsOverMaxLeverage.map(async (position) => {
-        const liquidationState = await getLiquidationState(position, vault);
-        if (liquidationState > 0) {
-            console.log("ToLiquidatePosition******************************");
-            console.log(`LiquidationState: ${liquidationState}`);
-            console.log(position);
-            positionsToLiquidate.push(position);
-        }
-    }));
+    await Promise.all(
+        positionsOverMaxLeverage.map(async (position) => {
+            const liquidationState = await getLiquidationState(position, vault);
+            if (liquidationState > 0) {
+                console.log("ToLiquidatePosition******************************");
+                console.log(`LiquidationState: ${liquidationState}`);
+                console.log(position);
+                positionsToLiquidate.push(position);
+            }
+        })
+    );
 
     return positionsToLiquidate;
-};
-
-const getPositionExists = async (dbPosition: IPositionSchema, vault: Vault) => {
-    try {
-        const positionSize = await retry({
-            fn: async () => {
-                const [size] = await vault.getPosition(
-                    dbPosition.account,
-                    dbPosition.collateralToken,
-                    dbPosition.indexToken,
-                    dbPosition.isLong
-                );
-                return size;
-            },
-            shouldRetry: (err) => {
-                return true;
-            },
-            maxRetries: 10,
-            timeoutSeconds: 5,
-        });
-        return positionSize.gt(0);
-    } catch (err) {
-        console.error(err);
-    }
 };
 
 const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) => {
@@ -92,29 +75,33 @@ const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) =>
     }
 };
 
-const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 60000;
-const priceCache = new Cache({ stdTTL: INTERVAL / 1000 });
-const getTokenPrice = async (address: string, isLong: boolean, vault: Vault) => {
-    const key = `${address}-${isLong}`;
-    const cachedPrice = priceCache.get(key) as BigNumber | undefined;
-    if (cachedPrice) {
-        return cachedPrice;
-    } else {
-        console.log("Fetching new price for " + key);
-        const price = isLong ? await vault.getMinPrice(address) : await vault.getMaxPrice(address);
-        priceCache.set(key, price);
-        return price;
-    }
-};
-
 const getDelta = (position: IPositionSchema, price: BigNumber) => {
-    const collateral = BigNumber.from(position.collateralAmount);
     const size = BigNumber.from(position.size);
     const averagePrice = BigNumber.from(position.averagePrice);
     const priceDelta = position.isLong ? price.sub(averagePrice) : averagePrice.sub(price);
-    const delta = size.mul(priceDelta).div(averagePrice);
-
-    return delta;
+    return size.mul(priceDelta).div(averagePrice);
 };
+
+async function calculateFees(position: IPositionSchema, vault: Vault) {
+    const fundingFee = await getFundingFee(position, vault);
+    const positionFee = await getPositionFee(position, vault);
+    const liquidationFee = await getLiquidationFee(vault);
+    return fundingFee.add(positionFee).add(liquidationFee);
+}
+
+const FUNDING_RATE_PRECISION = 1000000;
+async function getFundingFee(position: IPositionSchema, vault: Vault): Promise<BigNumber> {
+    const cumulativeFundingRate = await getCumulativeFundingRate(position.indexToken, vault);
+    const fundingRate = cumulativeFundingRate.sub(position.entryFundingRate);
+    if (fundingRate.eq(0)) {
+        return BigNumber.from(0);
+    }
+    return BigNumber.from(position.size).mul(fundingRate).div(FUNDING_RATE_PRECISION);
+}
+
+async function getPositionFee(position: IPositionSchema, vault: Vault) {
+    const marginFeeBps = await getMarginFeeBps(vault);
+    return BigNumber.from(position.size).mul(marginFeeBps).div(BASIS_POINTS_DIVISOR);
+}
 
 export default getPositionsToLiquidate;

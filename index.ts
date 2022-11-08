@@ -8,12 +8,15 @@ import { sleep } from "./src/helpers/helpers";
 const app = express();
 
 const INTERVAL = process.env.INTERVAL_MS ? parseInt(process.env.INTERVAL_MS) : 60000;
+const IS_PAUSED = process.env.IS_PAUSED === "true";
 
 app.listen(process.env.PORT, async () => {
     console.info("*** Server started on port " + process.env.PORT + " ***");
     resetMetrics();
     await connectDatabase();
-    startInterval();
+    if (!IS_PAUSED) {
+        startInterval();
+    }
 });
 
 const startInterval = async () => {

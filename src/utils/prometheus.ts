@@ -21,11 +21,18 @@ export const ethBalance = new Gauge({
     help: "ETH balance",
 });
 
+export const transactionErrors = new Counter({
+    name: "swaps_liquidation_transaction_errors",
+    help: "Transaction call errors",
+    labelNames: ["error"],
+});
+
 export const registerMetrics = (registry) => {
     registry.registerMetric(liquidations);
     registry.registerMetric(liquidationErrors);
     registry.registerMetric(lastSyncedBlock);
     registry.registerMetric(ethBalance);
+    registry.registerMetric(transactionErrors);
 };
 
 export const resetMetrics = () => {
@@ -33,8 +40,10 @@ export const resetMetrics = () => {
     liquidationErrors.reset();
     lastSyncedBlock.reset();
     ethBalance.reset();
+    transactionErrors.reset();
 
     liquidations.inc(0);
     liquidationErrors.inc(0);
     lastSyncedBlock.inc(0);
+    ethBalance.inc(0);
 };
