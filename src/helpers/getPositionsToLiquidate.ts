@@ -11,23 +11,23 @@ const BASIS_POINTS_DIVISOR = 10000;
 
 const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
     const positionsOverMaxLeverage: IPositionSchema[] = [];
-    for (const position of openPositions) {
+    await Promise.all(openPositions.map(async (position) => {
         const size = BigNumber.from(position.size);
         const liquidationMargin = size.mul(BASIS_POINTS_DIVISOR).div(MAX_LEVERAGE_BPS);
-
+        
         const price = await getTokenPrice(position.indexToken, position.isLong, vault);
         const collateral = BigNumber.from(position.collateralAmount);
         const delta = getDelta(position, price);
         const remainingCollateral = collateral.add(delta);
-
+        
         const fees = await calculateFees(position, vault);
-
+        
         if (remainingCollateral.lt(fees)) {
             positionsOverMaxLeverage.push(position);
         } else if (remainingCollateral.lte(liquidationMargin)) {
             positionsOverMaxLeverage.push(position);
         }
-    }
+    }));
 
     console.log(`Positions over max leverage: ${positionsOverMaxLeverage.length}`);
 
