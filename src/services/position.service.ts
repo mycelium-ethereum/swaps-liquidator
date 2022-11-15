@@ -17,8 +17,8 @@ export interface IPositionService {
 }
 
 class PositionService implements IPositionService {
-    async getPositions(): Promise<IPositionSchema[]> {
-        const docs = await Position.find();
+    async getPositions(indexToken?: string): Promise<IPositionSchema[]> {
+        const docs = await Position.find({ indexToken });
 
         return docs;
     }

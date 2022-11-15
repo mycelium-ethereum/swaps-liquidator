@@ -1,33 +1,38 @@
 import { IPositionSchema } from "src/models/position";
-import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
+import { Vault, Vault__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import { retry } from "./helpers";
 import { BigNumber } from "ethers";
 import { getCumulativeFundingRate, getLiquidationFee, getMarginFeeBps, getTokenPrice } from "./cachedGetters";
+import { Provider } from "@ethersproject/providers";
 
 const MAX_LEVERAGE_BPS = process.env.MAX_LEVERAGE_BPS
     ? BigNumber.from(process.env.MAX_LEVERAGE_BPS)
     : BigNumber.from(500000);
 const BASIS_POINTS_DIVISOR = 10000;
 
-const getPositionsToLiquidate = async (vault: Vault, openPositions: IPositionSchema[]) => {
+const getPositionsToLiquidate = async (provider: Provider, openPositions: IPositionSchema[]) => {
+    const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, provider);
+
     const positionsOverMaxLeverage: IPositionSchema[] = [];
-    await Promise.all(openPositions.map(async (position) => {
-        const size = BigNumber.from(position.size);
-        const liquidationMargin = size.mul(BASIS_POINTS_DIVISOR).div(MAX_LEVERAGE_BPS);
-        
-        const price = await getTokenPrice(position.indexToken, position.isLong, vault);
-        const collateral = BigNumber.from(position.collateralAmount);
-        const delta = getDelta(position, price);
-        const remainingCollateral = collateral.add(delta);
-        
-        const fees = await calculateFees(position, vault);
-        
-        if (remainingCollateral.lt(fees)) {
-            positionsOverMaxLeverage.push(position);
-        } else if (remainingCollateral.lte(liquidationMargin)) {
-            positionsOverMaxLeverage.push(position);
-        }
-    }));
+    await Promise.all(
+        openPositions.map(async (position) => {
+            const size = BigNumber.from(position.size);
+            const liquidationMargin = size.mul(BASIS_POINTS_DIVISOR).div(MAX_LEVERAGE_BPS);
+
+            const price = await getTokenPrice(position.indexToken, position.isLong, vault);
+            const collateral = BigNumber.from(position.collateralAmount);
+            const delta = getDelta(position, price);
+            const remainingCollateral = collateral.add(delta);
+
+            const fees = await calculateFees(position, vault);
+
+            if (remainingCollateral.lt(fees)) {
+                positionsOverMaxLeverage.push(position);
+            } else if (remainingCollateral.lte(liquidationMargin)) {
+                positionsOverMaxLeverage.push(position);
+            }
+        })
+    );
 
     console.log(`Positions over max leverage: ${positionsOverMaxLeverage.length}`);
 
