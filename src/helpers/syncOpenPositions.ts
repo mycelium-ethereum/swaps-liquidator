@@ -1,78 +1,74 @@
-import { Provider } from "@ethersproject/providers";
 import PositionService, { IPositionService } from "./../services/position.service";
 import ParameterService, { IParameterService } from "./../services/parameter.service";
-import { Vault } from "@mycelium-ethereum/perpetual-swaps-contracts";
-import { lastSyncedBlock } from "../utils/prometheus";
+import { lastSyncedBlock, liquidationErrors } from "../utils/prometheus";
 import { LogDescription } from "ethers/lib/utils";
 import { BigNumber } from "ethers";
+import { connectToBlockchain } from "./helpers";
+import { Vault__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
 
-const getOpenPositions = async (vault: Vault, provider: Provider) => {
-    const maxProcessBlock = Number(process.env.MAX_PROCESS_BLOCK);
+export const syncOpenPositions = async () => {
+    try {
+        const provider = await connectToBlockchain();
+        const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, provider);
+        const maxProcessBlock = Number(process.env.MAX_PROCESS_BLOCK);
 
-    const positionService: IPositionService = new PositionService();
-    const parameterService: IParameterService = new ParameterService();
+        const positionService: IPositionService = new PositionService();
+        const parameterService: IParameterService = new ParameterService();
 
-    let cursor = Number(process.env.FROM_BLOCK);
+        let cursor = Number(process.env.FROM_BLOCK);
 
-    const processedLastBlock = await parameterService.getParameter("PROCESSED_LAST_BLOCK");
-
-    if (processedLastBlock) {
-        cursor = Number(processedLastBlock.value);
-        console.log("processedLastBlock =" + processedLastBlock.value);
-    } else {
-        parameterService.createNewParameter("PROCESSED_LAST_BLOCK", cursor.toString());
-    }
-
-    let lastBlock = await provider.getBlock("latest");
-
-    console.log("lastBlock =" + lastBlock.number);
-
-    while (cursor < lastBlock.number) {
-        const fromBlock = cursor;
-        const toBlock = Math.min(cursor + maxProcessBlock, lastBlock.number);
-        console.log("Syncing blocks ::" + fromBlock + "-" + toBlock);
-
-        const logs = await provider.getLogs({
-            address: vault.address,
-            fromBlock,
-            toBlock,
-        });
-
-        console.log("Events found:", logs.length)
-
-        for (const log of logs) {
-            const event = vault.interface.parseLog(log);
-            switch (event.name) {
-                case "IncreasePosition":
-                    await handleIncreasePosition(event, positionService, log.blockNumber);
-                    break;
-                case "DecreasePosition":
-                    await handleDecreasePosition(event, positionService);
-                    break;
-                case "LiquidatePosition":
-                    await handleLiquidatePosition(event, positionService, log.blockNumber);
-                    break;
-                case "UpdatePosition":
-                    await handleUpdatePosition(event, positionService);
-                    break;
-                case "ClosePosition":
-                    await handleClosePosition(event, positionService, log.blockNumber);
-                    break;
-            }
+        const processedLastBlock = await parameterService.getParameter("PROCESSED_LAST_BLOCK");
+        if (processedLastBlock) {
+            cursor = Number(processedLastBlock.value);
+            console.log("processedLastBlock = " + processedLastBlock.value);
+        } else {
+            parameterService.createNewParameter("PROCESSED_LAST_BLOCK", cursor.toString());
         }
 
-        await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
-        lastSyncedBlock.set(toBlock);
+        let lastBlock = await provider.getBlock("latest");
+        console.log("lastBlock = " + lastBlock.number);
 
-        cursor = toBlock + 1;
+        while (cursor < lastBlock.number) {
+            const fromBlock = cursor;
+            const toBlock = Math.min(cursor + maxProcessBlock, lastBlock.number);
+            console.log("Syncing blocks :: " + fromBlock + "-" + toBlock);
+
+            const logs = await provider.getLogs({
+                address: vault.address,
+                fromBlock,
+                toBlock,
+            });
+
+            for (const log of logs) {
+                const event = vault.interface.parseLog(log);
+                switch (event.name) {
+                    case "IncreasePosition":
+                        await handleIncreasePosition(event, positionService, log.blockNumber);
+                        break;
+                    case "DecreasePosition":
+                        await handleDecreasePosition(event, positionService);
+                        break;
+                    case "LiquidatePosition":
+                        await handleLiquidatePosition(event, positionService, log.blockNumber);
+                        break;
+                    case "UpdatePosition":
+                        await handleUpdatePosition(event, positionService);
+                        break;
+                    case "ClosePosition":
+                        await handleClosePosition(event, positionService, log.blockNumber);
+                        break;
+                }
+            }
+
+            await parameterService.updateParameter("PROCESSED_LAST_BLOCK", toBlock.toString());
+            lastSyncedBlock.set(toBlock);
+            cursor = toBlock + 1;
+        }
+    } catch (error) {
+        liquidationErrors.inc({ error: error.message });
+        console.error(error);
     }
-
-    const openPositions = await positionService.getPositions();
-
-    return openPositions;
 };
-
-export default getOpenPositions;
 
 async function handleIncreasePosition(event: LogDescription, positionService: PositionService, blockNumber: number) {
     const position = await positionService.getPosition(event.args.key);
