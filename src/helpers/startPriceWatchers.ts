@@ -84,7 +84,7 @@ export const startPriceWatchers = async () => {
             setInterval(async () => {
                 const newAggregatorAddr: string = await aggregatorProxy.aggregator();
                 if (newAggregatorAddr !== aggregatorAddr) {
-                    console.log(`Aggregator for ${token} updated to ${newAggregatorAddr}`);
+                    console.log(`[${token}] Aggregator updated to ${newAggregatorAddr}`);
 
                     aggregator.removeAllListeners();
                     aggregatorAddr = newAggregatorAddr;
