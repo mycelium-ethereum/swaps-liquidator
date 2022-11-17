@@ -1,6 +1,5 @@
 import { IPositionSchema } from "src/models/position";
 import { Vault, Vault__factory } from "@mycelium-ethereum/perpetual-swaps-contracts";
-import { retry } from "./helpers";
 import { BigNumber } from "ethers";
 import { getCumulativeFundingRate, getLiquidationFee, getMarginFeeBps, getTokenPrice } from "./cachedGetters";
 import { Provider } from "@ethersproject/providers";
@@ -10,12 +9,12 @@ const MAX_LEVERAGE_BPS = process.env.MAX_LEVERAGE_BPS
     : BigNumber.from(500000);
 const BASIS_POINTS_DIVISOR = 10000;
 
-const getPositionsToLiquidate = async (provider: Provider, openPositions: IPositionSchema[]) => {
+const getPositionsToLiquidate = async (provider: Provider, positions: IPositionSchema[]) => {
     const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, provider);
 
-    const positionsOverMaxLeverage: IPositionSchema[] = [];
+    const positionsToLiquidate: IPositionSchema[] = [];
     await Promise.all(
-        openPositions.map(async (position) => {
+        positions.map(async (position) => {
             const size = BigNumber.from(position.size);
             const liquidationMargin = size.mul(BASIS_POINTS_DIVISOR).div(MAX_LEVERAGE_BPS);
 
@@ -27,57 +26,14 @@ const getPositionsToLiquidate = async (provider: Provider, openPositions: IPosit
             const fees = await calculateFees(position, vault);
 
             if (remainingCollateral.lt(fees)) {
-                positionsOverMaxLeverage.push(position);
+                positionsToLiquidate.push(position);
             } else if (remainingCollateral.lte(liquidationMargin)) {
-                positionsOverMaxLeverage.push(position);
-            }
-        })
-    );
-
-    console.log(`Positions over max leverage: ${positionsOverMaxLeverage.length}`);
-
-    // Confirm in contract that position is liquidatible
-    const positionsToLiquidate: IPositionSchema[] = [];
-    await Promise.all(
-        positionsOverMaxLeverage.map(async (position) => {
-            const liquidationState = await getLiquidationState(position, vault);
-            if (liquidationState > 0) {
-                console.log("ToLiquidatePosition******************************");
-                console.log(`LiquidationState: ${liquidationState}`);
-                console.log(position);
                 positionsToLiquidate.push(position);
             }
         })
     );
 
     return positionsToLiquidate;
-};
-
-const getLiquidationState = async (dbPosition: IPositionSchema, vault: Vault) => {
-    try {
-        const liquidationState = await retry({
-            fn: async () => {
-                const [state] = await vault.validateLiquidation(
-                    dbPosition.account,
-                    dbPosition.collateralToken,
-                    dbPosition.indexToken,
-                    dbPosition.isLong,
-                    false
-                );
-                return state;
-            },
-            shouldRetry: (err) => {
-                return true;
-            },
-            maxRetries: 10,
-            timeoutSeconds: 5,
-        });
-
-        if (!liquidationState) return 0;
-        return liquidationState.toNumber();
-    } catch (err) {
-        console.error(err);
-    }
 };
 
 const getDelta = (position: IPositionSchema, price: BigNumber) => {

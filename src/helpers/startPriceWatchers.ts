@@ -2,16 +2,23 @@ import { Provider } from "@ethersproject/providers";
 import {
     FastPriceEvents__factory,
     Vault__factory,
-    Vault,
     VaultPriceFeed__factory,
 } from "@mycelium-ethereum/perpetual-swaps-contracts";
 import { BigNumber, ethers, Event } from "ethers";
 import LiquidationService from "../services/liquidation.service";
 import PositionService from "../services/position.service";
 import getPositionsToLiquidate from "./getPositionsToLiquidate";
-import { connectToBlockchain, createProvider } from "./helpers";
+import { createProvider } from "./helpers";
 import EACAggregatorProxy from "../../abis/EACAggregatorProxy.json";
 import Aggregator from "../../abis/AccessControlledOffchainAggregator.json";
+import { liquidationErrors } from "../utils/prometheus";
+
+const liquidationService = new LiquidationService();
+
+// To ensure that each price update is handled only once, we need to keep track of the last processed
+// block number and transaction index. This is stored as a decimal number in the format
+// "blockNumber.transactionIndex"
+const lastUpdateByToken: Record<string, number> = {};
 
 export const startPriceWatchers = async () => {
     const providers: Provider[] = [createProvider(process.env.RPC_URL), createProvider(process.env.FALLBACK_RPC_URL)];
@@ -19,21 +26,61 @@ export const startPriceWatchers = async () => {
     // Setup FastPriceFeed listeners
     providers.forEach((provider) => {
         const fastPriceEvents = FastPriceEvents__factory.connect(process.env.FAST_PRICE_EVENTS_ADDRESS, provider);
-        fastPriceEvents.on("PriceUpdate", handleFastPriceUpdate(provider));
+        fastPriceEvents.on("PriceUpdate", (token: string, price: BigNumber, sender: string, event: Event) => {
+            try {
+                const updateValue = Number(`${event.blockNumber}.${event.transactionIndex}`);
+                if (lastUpdateByToken[token] >= updateValue) {
+                    // This event has already been processed
+                    return;
+                }
+                lastUpdateByToken[token] = updateValue;
+
+                console.log(`Price update for ${token}`);
+
+                checkForLiquidations(provider, token);
+            } catch (err) {
+                console.error(err);
+                liquidationErrors.inc({ error: err.message });
+            }
+        });
     });
 
     // Setup Chainlink listeners
     providers.forEach(async (provider) => {
         const tokens = await getVaultTokens(provider);
+
         tokens.forEach(async (token) => {
+            // Check for liquidations on startup
+            checkForLiquidations(provider, token);
+
             const aggregatorProxy = await getCLAggregatorProxy(token, provider);
             let aggregatorAddr: string = await aggregatorProxy.aggregator();
             let aggregator = new ethers.Contract(aggregatorAddr, Aggregator, provider);
 
             console.log(`Listening for price updates for ${token} at ${aggregatorAddr}`);
-            aggregator.on("AnswerUpdated", handleChainlinkPriceUpdate(provider, token));
 
-            // The aggregator contract doesn't emit an event when the aggregator is updated, so we need to poll for it
+            const onCLPriceUpdate = (current: BigNumber, roundId: BigNumber, updatedAt: BigNumber, event: Event) => {
+                try {
+                    const updateValue = Number(`${event.blockNumber}.${event.transactionIndex}`);
+                    if (lastUpdateByToken[token] >= updateValue) {
+                        // This event has already been processed
+                        return;
+                    }
+                    lastUpdateByToken[token] = updateValue;
+
+                    console.log(`Price update for ${token}`);
+
+                    checkForLiquidations(provider, token);
+                } catch (err) {
+                    console.error(err);
+                    liquidationErrors.inc();
+                }
+            };
+
+            aggregator.on("AnswerUpdated", onCLPriceUpdate);
+
+            // The aggregator contract doesn't emit an event when the aggregator is updated,
+            // so we need to poll for it
             setInterval(async () => {
                 const newAggregatorAddr: string = await aggregatorProxy.aggregator();
                 if (newAggregatorAddr !== aggregatorAddr) {
@@ -43,40 +90,23 @@ export const startPriceWatchers = async () => {
                     aggregatorAddr = newAggregatorAddr;
                     aggregator = new ethers.Contract(newAggregatorAddr, Aggregator, provider);
 
-                    aggregator.on("AnswerUpdated", handleChainlinkPriceUpdate(provider, token));
+                    aggregator.on("AnswerUpdated", onCLPriceUpdate);
                 }
             }, 60000);
         });
     });
 };
 
-// To ensure that each price update is handled exactly once, we need to keep track of the last processed block number and
-// transaction index. We do this for each token as two token prices can be updated in the same transaction
-// This is stored as a decimal number in the format "blockNumber.transactionIndex"
-const idempotencyRecord: Record<string, number> = {};
+async function checkForLiquidations(provider: Provider, token: string) {
+    const positionService = new PositionService();
 
-function handleFastPriceUpdate(provider: Provider) {
-    return async (token: string, price: BigNumber, sender: string, event: Event) => {
-        return;
-        const idempotencyKey = Number(`${event.blockNumber}.${event.transactionIndex}`);
-        if (idempotencyRecord[token] >= idempotencyKey) {
-            // This event has already been processed
-            return;
-        }
-        idempotencyRecord[token] = idempotencyKey;
-        console.log(`Price update for ${token} to ${price.toString()}`);
+    const openPositions = await positionService.getPositions(token);
+    const positionsToLiquidate = await getPositionsToLiquidate(provider, openPositions);
 
-        const positionService = new PositionService();
-
-        const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, provider);
-        const openPositions = await positionService.getPositions(token);
-        const positionsToLiquidate = await getPositionsToLiquidate(provider, openPositions);
-
-        if (positionsToLiquidate.length > 0) {
-            const liquidationService = new LiquidationService();
-            liquidationService.liquidate(positionsToLiquidate);
-        }
-    };
+    if (positionsToLiquidate.length > 0) {
+        console.log(`[${token}] Found ${positionsToLiquidate.length} positions to liquidate`);
+        liquidationService.liquidate(positionsToLiquidate);
+    }
 }
 
 async function getVaultTokens(provider: Provider) {
@@ -107,28 +137,4 @@ async function getCLAggregatorProxy(token: string, provider: Provider) {
     const aggregatorProxyAddr = await vaultPriceFeed.priceFeeds(token);
     const aggregatorProxy = new ethers.Contract(aggregatorProxyAddr, EACAggregatorProxy, provider);
     return aggregatorProxy;
-}
-
-function handleChainlinkPriceUpdate(provider: Provider, token: string) {
-    return async (current: BigNumber, roundId: BigNumber, updatedAt: BigNumber, event: Event) => {};
-    // return async (token: string, price: BigNumber, sender: string, event: Event) => {
-    //     const idempotencyKey = Number(`${event.blockNumber}.${event.transactionIndex}`);
-    //     if (idempotencyRecord[token] >= idempotencyKey) {
-    //         // This event has already been processed
-    //         return;
-    //     }
-    //     idempotencyRecord[token] = idempotencyKey;
-    //     console.log(`Price update for ${token} to ${price.toString()}`);
-
-    //     const positionService = new PositionService();
-
-    //     const vault = Vault__factory.connect(process.env.VAULT_ADDRESS, provider);
-    //     const openPositions = await positionService.getPositions(token);
-    //     const positionsToLiquidate = await getPositionsToLiquidate(provider, openPositions);
-
-    //     if (positionsToLiquidate.length > 0) {
-    //         const liquidationService = new LiquidationService();
-    //         liquidationService.liquidate(positionsToLiquidate);
-    //     }
-    // };
 }

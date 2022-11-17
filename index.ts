@@ -39,7 +39,7 @@ const startSyncInterval = async () => {
     console.log(`Starting sync interval with ${INTERVAL}ms interval`);
     while (true) {
         await syncOpenPositions();
-        await sleep(INTERVAL);
+        await sleep(INTERVAL / 1000);
     }
 };
 

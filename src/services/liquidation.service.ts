@@ -11,6 +11,7 @@ class LiquidationService {
     private static _instance: LiquidationService;
     private queue: IPositionSchema[] = [];
     private readonly BATCH_SIZE = 50;
+    private isProcessing = false;
 
     constructor() {
         if (LiquidationService._instance) {
@@ -26,12 +27,36 @@ class LiquidationService {
     }
 
     private async processQueue() {
+        if (this.isProcessing) {
+            return;
+        }
+        this.isProcessing = true;
         while (this.queue.length) {
             const provider = await connectToBlockchain();
             const signer = new ethers.Wallet(process.env.LIQUIDATOR_PRIVATE_KEY, provider);
             const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);
 
-            const batch = this.queue.splice(0, this.BATCH_SIZE);
+            let batch = this.queue.splice(0, this.BATCH_SIZE);
+            const feeReceiver = process.env.FEE_RECEIVER_ADDRESS;
+
+            // When liquidating a batch, errors are swallowed which wastes gas
+            // So we check each position individually before the batch call
+            await Promise.all(
+                batch.map(async (position) => {
+                    try {
+                        await positionManager.estimateGas.liquidatePosition(
+                            position.account,
+                            position.indexToken,
+                            position.collateralToken,
+                            position.isLong,
+                            feeReceiver
+                        );
+                    } catch (err) {
+                        batch = batch.filter((p) => p.key !== position.key);
+                    }
+                })
+            );
+            if (batch.length === 0) continue;
 
             const accounts = batch.map((position) => position.account);
             const collateralTokens = batch.map((position) => position.collateralToken);
@@ -51,7 +76,7 @@ class LiquidationService {
                 collateralTokens,
                 indexTokens,
                 isLongs,
-                process.env.FEE_RECEIVER
+                feeReceiver
             );
 
             const receipt = await tx.wait();
@@ -73,6 +98,7 @@ class LiquidationService {
 
             liquidations.inc(batch.length - numErrors);
         }
+        this.isProcessing = false;
     }
 }
 
