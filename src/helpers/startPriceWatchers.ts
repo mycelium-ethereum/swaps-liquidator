@@ -21,45 +21,16 @@ const liquidationService = new LiquidationService();
 const lastUpdateByToken: Record<string, number> = {};
 
 export const startPriceWatchers = async () => {
-    const providers: Provider[] = [createProvider(process.env.RPC_URL), createProvider(process.env.FALLBACK_RPC_URL)];
+    try {
+        const providers: Provider[] = [
+            createProvider(process.env.RPC_URL),
+            createProvider(process.env.FALLBACK_RPC_URL),
+        ];
 
-    // Setup FastPriceFeed listeners
-    providers.forEach((provider) => {
-        const fastPriceEvents = FastPriceEvents__factory.connect(process.env.FAST_PRICE_EVENTS_ADDRESS, provider);
-        fastPriceEvents.on("PriceUpdate", (token: string, price: BigNumber, sender: string, event: Event) => {
-            try {
-                const updateValue = Number(`${event.blockNumber}.${event.transactionIndex}`);
-                if (lastUpdateByToken[token] >= updateValue) {
-                    // This event has already been processed
-                    return;
-                }
-                lastUpdateByToken[token] = updateValue;
-
-                console.log(`Price update for ${token}`);
-
-                checkForLiquidations(provider, token);
-            } catch (err) {
-                console.error(err);
-                liquidationErrors.inc({ error: err.message });
-            }
-        });
-    });
-
-    // Setup Chainlink listeners
-    providers.forEach(async (provider) => {
-        const tokens = await getVaultTokens(provider);
-
-        tokens.forEach(async (token) => {
-            // Check for liquidations on startup
-            checkForLiquidations(provider, token);
-
-            const aggregatorProxy = await getCLAggregatorProxy(token, provider);
-            let aggregatorAddr: string = await aggregatorProxy.aggregator();
-            let aggregator = new ethers.Contract(aggregatorAddr, Aggregator, provider);
-
-            console.log(`Listening for price updates for ${token} at ${aggregatorAddr}`);
-
-            const onCLPriceUpdate = (current: BigNumber, roundId: BigNumber, updatedAt: BigNumber, event: Event) => {
+        // Setup FastPriceFeed listeners
+        providers.forEach((provider) => {
+            const fastPriceEvents = FastPriceEvents__factory.connect(process.env.FAST_PRICE_EVENTS_ADDRESS, provider);
+            fastPriceEvents.on("PriceUpdate", (token: string, price: BigNumber, sender: string, event: Event) => {
                 try {
                     const updateValue = Number(`${event.blockNumber}.${event.transactionIndex}`);
                     if (lastUpdateByToken[token] >= updateValue) {
@@ -73,28 +44,70 @@ export const startPriceWatchers = async () => {
                     checkForLiquidations(provider, token);
                 } catch (err) {
                     console.error(err);
-                    liquidationErrors.inc();
+                    liquidationErrors.inc({ error: err.message });
                 }
-            };
-
-            aggregator.on("AnswerUpdated", onCLPriceUpdate);
-
-            // The aggregator contract doesn't emit an event when the aggregator is updated,
-            // so we need to poll for it
-            setInterval(async () => {
-                const newAggregatorAddr: string = await aggregatorProxy.aggregator();
-                if (newAggregatorAddr !== aggregatorAddr) {
-                    console.log(`[${token}] Aggregator updated to ${newAggregatorAddr}`);
-
-                    aggregator.removeAllListeners();
-                    aggregatorAddr = newAggregatorAddr;
-                    aggregator = new ethers.Contract(newAggregatorAddr, Aggregator, provider);
-
-                    aggregator.on("AnswerUpdated", onCLPriceUpdate);
-                }
-            }, 60000);
+            });
         });
-    });
+
+        // Setup Chainlink listeners
+        providers.forEach(async (provider) => {
+            const tokens = await getVaultTokens(provider);
+
+            tokens.forEach(async (token) => {
+                // Check for liquidations on startup
+                checkForLiquidations(provider, token);
+
+                const aggregatorProxy = await getCLAggregatorProxy(token, provider);
+                let aggregatorAddr: string = await aggregatorProxy.aggregator();
+                let aggregator = new ethers.Contract(aggregatorAddr, Aggregator, provider);
+
+                console.log(`Listening for price updates for ${token} at ${aggregatorAddr}`);
+
+                const onCLPriceUpdate = (
+                    current: BigNumber,
+                    roundId: BigNumber,
+                    updatedAt: BigNumber,
+                    event: Event
+                ) => {
+                    try {
+                        const updateValue = Number(`${event.blockNumber}.${event.transactionIndex}`);
+                        if (lastUpdateByToken[token] >= updateValue) {
+                            // This event has already been processed
+                            return;
+                        }
+                        lastUpdateByToken[token] = updateValue;
+
+                        console.log(`Price update for ${token}`);
+
+                        checkForLiquidations(provider, token);
+                    } catch (err) {
+                        console.error(err);
+                        liquidationErrors.inc();
+                    }
+                };
+
+                aggregator.on("AnswerUpdated", onCLPriceUpdate);
+
+                // The aggregator contract doesn't emit an event when the aggregator is updated,
+                // so we need to poll for it
+                setInterval(async () => {
+                    const newAggregatorAddr: string = await aggregatorProxy.aggregator();
+                    if (newAggregatorAddr !== aggregatorAddr) {
+                        console.log(`[${token}] Aggregator updated to ${newAggregatorAddr}`);
+
+                        aggregator.removeAllListeners();
+                        aggregatorAddr = newAggregatorAddr;
+                        aggregator = new ethers.Contract(newAggregatorAddr, Aggregator, provider);
+
+                        aggregator.on("AnswerUpdated", onCLPriceUpdate);
+                    }
+                }, 60000);
+            });
+        });
+    } catch (err) {
+        console.error(err);
+        liquidationErrors.inc({ error: err.message });
+    }
 };
 
 async function checkForLiquidations(provider: Provider, token: string) {
