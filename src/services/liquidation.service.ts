@@ -52,6 +52,7 @@ class LiquidationService {
                             feeReceiver
                         );
                     } catch (err) {
+                        console.log(err);
                         batch = batch.filter((p) => p.key !== position.key);
                     }
                 })

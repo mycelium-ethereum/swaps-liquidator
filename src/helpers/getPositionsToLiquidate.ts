@@ -39,6 +39,9 @@ const getPositionsToLiquidate = async (provider: Provider, positions: IPositionS
 const getDelta = (position: IPositionSchema, price: BigNumber) => {
     const size = BigNumber.from(position.size);
     const averagePrice = BigNumber.from(position.averagePrice);
+    if (averagePrice.eq(0)) {
+        return BigNumber.from(0);
+    }
     const priceDelta = position.isLong ? price.sub(averagePrice) : averagePrice.sub(price);
     return size.mul(priceDelta).div(averagePrice);
 };
