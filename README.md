@@ -1,6 +1,6 @@
-# Mycelium Swaps Liquidator
+# Neutral Liquidation Keeper
 
-This keeper will automatically liquidate unhealthy positions in the Mycelium Swaps contracts.  It can either be run as a single container, connecting to an external MongoDB database, or the database and keeper can be run together with `docker-compose`.
+This keeper will automatically liquidate unhealthy positions in the Neutral Protocol contracts.  It can either be run as a single container, connecting to an external MongoDB database, or the database and keeper can be run together with `docker-compose`.
 
 ## Setting up the Environment
 
@@ -32,13 +32,13 @@ docker compose up
 Setup the environment, then build and run the docker container.
 
 ```
-docker build -t mycelium-swaps-liquidator .
-docker run --env-file .env mycelium-swaps-liquidator
+docker build -t neutral-liquidation-keeper .
+docker run --env-file .env neutral-liquidation-keeper
 ```
 
 ## Push image to gcp
 ```
-docker build -t swaps-liquidator --platform linux/amd64 .
-docker tag swaps-liquidator gcr.io/avian-direction-235610/swaps-liquidator:<version>
-docker push gcr.io/avian-direction-235610/swaps-liquidator:<version>
+docker build -t neutral-liquidation-keeper --platform linux/amd64 .
+docker tag neutral-liquidation-keeper gcr.io/avian-direction-235610/neutral-liquidation-keeper:<version>
+docker push gcr.io/avian-direction-235610/neutral-liquidation-keeper:<version>
 ```
