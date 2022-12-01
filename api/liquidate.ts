@@ -5,7 +5,7 @@ import getOpenPositions from "../src/helpers/getOpenPositions";
 import getPositionsToLiquidate from "../src/helpers/getPositionsToLiquidate";
 import { checkProviderHealth } from "../src/utils";
 import { ethBalance, liquidationErrors } from "../src/utils/prometheus";
-import { liquidateInBatches } from "../src/helpers/liquidatePositions";
+import { liquidateMultiple } from '../src/helpers/liquidatePositions';
 
 const liquidationHandler = async function () {
     try {
@@ -48,7 +48,7 @@ const liquidationHandler = async function () {
         }
 
         console.log("STEP 4: Liquidate positions");
-        await liquidateInBatches(positionsToLiquidate, positionManager);
+        await liquidateMultiple(positionsToLiquidate, positionManager);
         console.log("OK, all positions liquidated.");
 
         return;
