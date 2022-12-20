@@ -37,7 +37,7 @@ class LiquidationService {
             const positionManager = PositionManager__factory.connect(process.env.POSITION_MANAGER_ADDRESS, signer);
 
             let batch = this.queue.splice(0, this.BATCH_SIZE);
-            const feeReceiver = process.env.FEE_RECEIVER_ADDRESS;
+            const feeReceiver = process.env.FEE_RECEIVER;
 
             // When liquidating a batch, errors are swallowed which wastes gas
             // So we check each position individually before the batch call
@@ -52,7 +52,7 @@ class LiquidationService {
                             feeReceiver
                         );
                     } catch (err) {
-                        console.log(err);
+                        // console.log(err);
                         batch = batch.filter((p) => p.key !== position.key);
                     }
                 })

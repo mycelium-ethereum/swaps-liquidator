@@ -118,6 +118,7 @@ async function checkForLiquidations(provider: Provider, token: string) {
 
     if (positionsToLiquidate.length > 0) {
         console.log(`[${token}] Found ${positionsToLiquidate.length} positions to liquidate`);
+        console.log(positionsToLiquidate);
         liquidationService.liquidate(positionsToLiquidate);
     }
 }
